@@ -1,112 +1,76 @@
 extends Node3D
 
+const Zones = preload("res://zones.gd")
+
+const HERO_NAME := "Aris"
 const SPEED := 6.0
 const GRAVITY := 20.0
+const JUMP_SPEED := 9.0
 const JOY_RADIUS := 110.0
+const BTN_RADIUS := 80.0
 
 var player: CharacterBody3D
 var cam_pivot: Node3D
 var camera: Camera3D
+var zone: Node3D
+var spawn_point := Vector3(0, 1.1, 8)
 var yaw := 0.0
 var pitch := -0.4
 var joy_id := -1
 var look_id := -1
+var jump_id := -1
+var act_id := -1
 var joy_center := Vector2(220, 520)
 var joy_pos := Vector2(220, 520)
 var joy_vec := Vector2.ZERO
+var jump_buffer := 0.0
+var coyote := 0.0
+var near_portal: Node3D = null
+var traveling := false
 var ui: Control
 var info_label: Label
+var fade: ColorRect
 
 
 func _ready() -> void:
-	_build_world()
 	_build_player()
 	_build_camera()
 	_build_ui()
+	_load_zone("world")
 
 
-func _mat(color: Color) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = color
-	return m
+func _view() -> Vector2:
+	return get_viewport().get_visible_rect().size
 
 
-func _build_world() -> void:
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.55, 0.75, 0.95)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.7, 0.75, 0.85)
-	env.ambient_light_energy = 0.6
-	var we := WorldEnvironment.new()
-	we.environment = env
-	add_child(we)
-
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50, -30, 0)
-	sun.shadow_enabled = true
-	add_child(sun)
-
-	_add_box(Vector3(0, -0.5, 0), Vector3(120, 1, 120), Color(0.35, 0.6, 0.3))
-	_add_box(Vector3(0, 0.4, -6), Vector3(4, 0.8, 4), Color(0.85, 0.82, 0.75))
-	for i in 12:
-		var a := TAU * i / 12.0
-		_add_column(Vector3(cos(a) * 14.0, 0, sin(a) * 14.0))
+func _jump_pos() -> Vector2:
+	return Vector2(_view().x - 170, _view().y - 170)
 
 
-func _add_box(pos: Vector3, size: Vector3, color: Color) -> void:
-	var body := StaticBody3D.new()
-	body.position = pos
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
-	mi.material_override = _mat(color)
-	body.add_child(mi)
-	var cs := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = size
-	cs.shape = bs
-	body.add_child(cs)
-	add_child(body)
+func _act_pos() -> Vector2:
+	return Vector2(_view().x - 370, _view().y - 130)
 
 
-func _add_column(pos: Vector3) -> void:
-	var body := StaticBody3D.new()
-	body.position = pos + Vector3(0, 3, 0)
-	var mi := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = 0.6
-	cm.bottom_radius = 0.6
-	cm.height = 6.0
-	mi.mesh = cm
-	mi.material_override = _mat(Color(0.9, 0.88, 0.8))
-	body.add_child(mi)
-	var cs := CollisionShape3D.new()
-	var shape := CylinderShape3D.new()
-	shape.radius = 0.6
-	shape.height = 6.0
-	cs.shape = shape
-	body.add_child(cs)
-	add_child(body)
+func _default_joy_center() -> Vector2:
+	return Vector2(220, _view().y - 200)
 
 
 func _build_player() -> void:
 	player = CharacterBody3D.new()
-	player.position = Vector3(0, 1.1, 8)
+	player.position = spawn_point
 	var mi := MeshInstance3D.new()
 	var cap := CapsuleMesh.new()
 	cap.radius = 0.4
 	cap.height = 1.8
 	mi.mesh = cap
-	mi.material_override = _mat(Color(0.2, 0.4, 0.9))
+	mi.material_override = Zones.mat(Color(0.2, 0.4, 0.9))
 	player.add_child(mi)
 	var nose := MeshInstance3D.new()
 	var nm := BoxMesh.new()
 	nm.size = Vector3(0.2, 0.2, 0.4)
 	nose.mesh = nm
 	nose.position = Vector3(0, 0.5, -0.45)
-	nose.material_override = _mat(Color(1, 0.8, 0.2))
+	nose.material_override = Zones.mat(Color(1, 0.8, 0.2))
 	player.add_child(nose)
 	var cs := CollisionShape3D.new()
 	var shape := CapsuleShape3D.new()
@@ -114,6 +78,13 @@ func _build_player() -> void:
 	shape.height = 1.8
 	cs.shape = shape
 	player.add_child(cs)
+	var name_tag := Label3D.new()
+	name_tag.text = HERO_NAME
+	name_tag.font_size = 48
+	name_tag.pixel_size = 0.01
+	name_tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	name_tag.position = Vector3(0, 1.4, 0)
+	player.add_child(name_tag)
 	add_child(player)
 
 
@@ -124,10 +95,6 @@ func _build_camera() -> void:
 	camera.position = Vector3(0, 0, 6.0)
 	cam_pivot.add_child(camera)
 	camera.current = true
-
-
-func _default_joy_center() -> Vector2:
-	return Vector2(220, get_viewport().get_visible_rect().size.y - 200)
 
 
 func _build_ui() -> void:
@@ -142,9 +109,19 @@ func _build_ui() -> void:
 	info_label.position = Vector2(20, 12)
 	info_label.add_theme_font_size_override("font_size", 26)
 	layer.add_child(info_label)
+	fade = ColorRect.new()
+	fade.color = Color(0, 0, 0, 0)
+	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(fade)
 	joy_center = _default_joy_center()
 	joy_pos = joy_center
 	ui.queue_redraw()
+
+
+func _draw_button_text(text: String, center: Vector2) -> void:
+	var font := ThemeDB.fallback_font
+	ui.draw_string(font, Vector2(center.x - BTN_RADIUS, center.y + 9), text, HORIZONTAL_ALIGNMENT_CENTER, BTN_RADIUS * 2.0, 26, Color(1, 1, 1, 0.95))
 
 
 func _draw_ui() -> void:
@@ -153,21 +130,75 @@ func _draw_ui() -> void:
 		a = 0.45
 	ui.draw_circle(joy_center, JOY_RADIUS, Color(1, 1, 1, a * 0.5))
 	ui.draw_circle(joy_pos, 45.0, Color(1, 1, 1, a + 0.2))
+	var ja := 0.3
+	if jump_id != -1:
+		ja = 0.55
+	ui.draw_circle(_jump_pos(), BTN_RADIUS, Color(1, 1, 1, ja))
+	_draw_button_text("SALTAR", _jump_pos())
+	if near_portal != null:
+		var aa := 0.45
+		if act_id != -1:
+			aa = 0.7
+		ui.draw_circle(_act_pos(), BTN_RADIUS, Color(1, 0.85, 0.3, aa))
+		_draw_button_text("VIAJAR", _act_pos())
+
+
+func _load_zone(zone_name: String) -> void:
+	if zone != null:
+		remove_child(zone)
+		zone.queue_free()
+	zone = Node3D.new()
+	add_child(zone)
+	var info: Dictionary
+	if zone_name == "camp":
+		info = Zones.build_camp(zone)
+	else:
+		info = Zones.build_world(zone)
+	spawn_point = info["spawn"]
+	player.position = spawn_point
+	player.velocity = Vector3.ZERO
+	near_portal = null
+	ui.queue_redraw()
+
+
+func _travel(target: String) -> void:
+	if traveling:
+		return
+	traveling = true
+	var tw := create_tween()
+	tw.tween_property(fade, "color:a", 1.0, 0.35)
+	await tw.finished
+	_load_zone(target)
+	var tw2 := create_tween()
+	tw2.tween_property(fade, "color:a", 0.0, 0.35)
+	await tw2.finished
+	traveling = false
 
 
 func _input(event: InputEvent) -> void:
-	var half := get_viewport().get_visible_rect().size.x * 0.5
+	var half := _view().x * 0.5
 	if event is InputEventScreenTouch:
+		var pos: Vector2 = event.position
 		if event.pressed:
-			if event.position.x < half and joy_id == -1:
+			if pos.distance_to(_jump_pos()) < BTN_RADIUS * 1.2 and jump_id == -1:
+				jump_id = event.index
+				jump_buffer = 0.15
+			elif near_portal != null and pos.distance_to(_act_pos()) < BTN_RADIUS * 1.2 and act_id == -1:
+				act_id = event.index
+				_travel(str(near_portal.get_meta("target")))
+			elif pos.x < half and joy_id == -1:
 				joy_id = event.index
-				joy_center = event.position
-				joy_pos = event.position
+				joy_center = pos
+				joy_pos = pos
 				joy_vec = Vector2.ZERO
-			elif event.position.x >= half and look_id == -1:
+			elif pos.x >= half and look_id == -1:
 				look_id = event.index
 		else:
-			if event.index == joy_id:
+			if event.index == jump_id:
+				jump_id = -1
+			elif event.index == act_id:
+				act_id = -1
+			elif event.index == joy_id:
 				joy_id = -1
 				joy_vec = Vector2.ZERO
 				joy_center = _default_joy_center()
@@ -189,21 +220,43 @@ func _input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if traveling:
+		return
 	var dir := Vector3(joy_vec.x, 0, joy_vec.y).rotated(Vector3.UP, yaw)
 	var vel := player.velocity
 	vel.x = dir.x * SPEED
 	vel.z = dir.z * SPEED
-	if player.is_on_floor():
+	if player.is_on_floor() and vel.y <= 0.0:
+		coyote = 0.12
 		vel.y = 0.0
 	else:
+		coyote -= delta
 		vel.y -= GRAVITY * delta
+	jump_buffer -= delta
+	if jump_buffer > 0.0 and coyote > 0.0:
+		vel.y = JUMP_SPEED
+		jump_buffer = 0.0
+		coyote = 0.0
 	player.velocity = vel
 	player.move_and_slide()
 	if dir.length() > 0.1:
 		player.rotation.y = lerp_angle(player.rotation.y, atan2(-dir.x, -dir.z), delta * 10.0)
+	if player.position.y < -15.0:
+		player.position = spawn_point
+		player.velocity = Vector3.ZERO
 
 
 func _process(_delta: float) -> void:
 	cam_pivot.global_position = player.global_position + Vector3(0, 1.5, 0)
 	cam_pivot.rotation = Vector3(pitch, yaw, 0)
-	info_label.text = "FPS: %d\nIzquierda: moverte | Derecha: cámara" % Engine.get_frames_per_second()
+	var found: Node3D = null
+	for n in get_tree().get_nodes_in_group("portals"):
+		var p := n as Node3D
+		var dx := p.global_position.x - player.global_position.x
+		var dz := p.global_position.z - player.global_position.z
+		if Vector2(dx, dz).length() < 2.4 and absf(p.global_position.y - player.global_position.y) < 3.0:
+			found = p
+	if found != near_portal:
+		near_portal = found
+		ui.queue_redraw()
+	info_label.text = "%s  |  FPS: %d\nIzq: moverte · Der: cámara" % [HERO_NAME, Engine.get_frames_per_second()]
