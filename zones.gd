@@ -1,0 +1,245 @@
+extends RefCounted
+
+
+static func mat(color: Color, emission: float = 0.0) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	if emission > 0.0:
+		m.emission_enabled = true
+		m.emission = color
+		m.emission_energy_multiplier = emission
+	return m
+
+
+static func box(root: Node3D, pos: Vector3, size: Vector3, color: Color) -> void:
+	var body := StaticBody3D.new()
+	body.position = pos
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = mat(color)
+	body.add_child(mi)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	cs.shape = bs
+	body.add_child(cs)
+	root.add_child(body)
+
+
+static func cylinder(root: Node3D, pos: Vector3, radius: float, height: float, color: Color) -> void:
+	var body := StaticBody3D.new()
+	body.position = pos
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = radius
+	cm.bottom_radius = radius
+	cm.height = height
+	mi.mesh = cm
+	mi.material_override = mat(color)
+	body.add_child(mi)
+	var cs := CollisionShape3D.new()
+	var shape := CylinderShape3D.new()
+	shape.radius = radius
+	shape.height = height
+	cs.shape = shape
+	body.add_child(cs)
+	root.add_child(body)
+
+
+static func tag(root: Node3D, pos: Vector3, text: String) -> void:
+	var l := Label3D.new()
+	l.text = text
+	l.font_size = 56
+	l.pixel_size = 0.01
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.position = pos
+	root.add_child(l)
+
+
+static func environment(root: Node3D, bg: Color, ambient: Color, ambient_energy: float, sun_energy: float, sun_color: Color) -> void:
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = bg
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = ambient
+	env.ambient_light_energy = ambient_energy
+	var we := WorldEnvironment.new()
+	we.environment = env
+	root.add_child(we)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-50, -30, 0)
+	sun.light_energy = sun_energy
+	sun.light_color = sun_color
+	sun.shadow_enabled = true
+	root.add_child(sun)
+
+
+static func portal(root: Node3D, pos: Vector3, target: String, label: String, color: Color) -> void:
+	var p := Node3D.new()
+	p.position = pos
+	p.add_to_group("portals")
+	p.set_meta("target", target)
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 1.6
+	cm.bottom_radius = 1.6
+	cm.height = 0.1
+	mi.mesh = cm
+	mi.material_override = mat(color, 2.0)
+	mi.position = Vector3(0, 0.05, 0)
+	p.add_child(mi)
+	var light := OmniLight3D.new()
+	light.light_color = color
+	light.light_energy = 1.5
+	light.omni_range = 6.0
+	light.position = Vector3(0, 1.0, 0)
+	p.add_child(light)
+	tag(p, Vector3(0, 2.6, 0), label)
+	root.add_child(p)
+
+
+static func _place(root: Node3D, pts: Array, color: Color) -> void:
+	for p in pts:
+		var v: Vector3 = p
+		box(root, v - Vector3(0, 0.3, 0), Vector3(3, 0.6, 3), color)
+
+
+static func build_world(root: Node3D) -> Dictionary:
+	environment(root, Color(0.55, 0.75, 0.95), Color(0.7, 0.75, 0.85), 0.6, 1.0, Color(1, 1, 1))
+	box(root, Vector3(0, -0.5, 0), Vector3(160, 1, 160), Color(0.35, 0.6, 0.3))
+	box(root, Vector3(0, 0.4, -10), Vector3(4, 0.8, 4), Color(0.85, 0.82, 0.75))
+	for i in 12:
+		var a := TAU * i / 12.0
+		cylinder(root, Vector3(cos(a) * 14.0, 3.0, sin(a) * 14.0), 0.6, 6.0, Color(0.9, 0.88, 0.8))
+	portal(root, Vector3(0, 0, 2), "camp", "Campamento", Color(0.3, 0.6, 1.0))
+
+	var rock := Color(0.55, 0.5, 0.45)
+	tag(root, Vector3(20, 3.0, -11), "Prueba de rocas")
+	# Ruta A (facil)
+	_place(root, [Vector3(24, 1.0, -14), Vector3(28, 2.0, -16.5), Vector3(32, 3.0, -17), Vector3(36, 4.0, -15), Vector3(37.5, 5.0, -11)], rock)
+	# Ruta B (dificil)
+	_place(root, [Vector3(23, 1.2, -8.5), Vector3(26.5, 2.4, -6.5), Vector3(28.5, 3.6, -2.5), Vector3(32, 4.8, 1.0)], Color(0.5, 0.45, 0.42))
+	# Rama lateral al tesoro
+	_place(root, [Vector3(31, 2.6, -21), Vector3(35, 3.4, -22), Vector3(39.5, 4.2, -21)], Color(0.6, 0.55, 0.4))
+	box(root, Vector3(39.5, 4.7, -21), Vector3(1, 1, 1), Color(1.0, 0.8, 0.2))
+	tag(root, Vector3(39.5, 6.2, -21), "Tesoro")
+	# Cima
+	box(root, Vector3(33, 5.6, -6), Vector3(6, 0.8, 6), Color(0.5, 0.47, 0.43))
+	box(root, Vector3(33, 6.5, -6), Vector3(1, 1, 1), Color(1.0, 0.8, 0.2))
+	tag(root, Vector3(33, 8.2, -6), "Cima")
+	return {"spawn": Vector3(0, 1.1, 8)}
+
+
+static func flame(root: Node3D) -> void:
+	var outer := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.0
+	cm.bottom_radius = 0.6
+	cm.height = 1.4
+	outer.mesh = cm
+	outer.material_override = mat(Color(1.0, 0.45, 0.1), 3.0)
+	outer.position = Vector3(0, 1.2, 0)
+	root.add_child(outer)
+	var inner := MeshInstance3D.new()
+	var cm2 := CylinderMesh.new()
+	cm2.top_radius = 0.0
+	cm2.bottom_radius = 0.3
+	cm2.height = 0.9
+	inner.mesh = cm2
+	inner.material_override = mat(Color(1.0, 0.85, 0.3), 4.0)
+	inner.position = Vector3(0, 1.0, 0)
+	root.add_child(inner)
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.6, 0.25)
+	light.light_energy = 3.0
+	light.omni_range = 18.0
+	light.shadow_enabled = true
+	light.position = Vector3(0, 1.8, 0)
+	root.add_child(light)
+	var tw := light.create_tween().set_loops()
+	tw.tween_property(light, "light_energy", 2.2, 0.18)
+	tw.tween_property(light, "light_energy", 3.3, 0.22)
+
+
+static func log_seat(root: Node3D, pos: Vector3, yaw_deg: float) -> void:
+	var body := StaticBody3D.new()
+	body.position = pos
+	body.rotation_degrees = Vector3(0, yaw_deg, 0)
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.28
+	cm.bottom_radius = 0.28
+	cm.height = 2.2
+	mi.mesh = cm
+	mi.rotation_degrees = Vector3(0, 0, 90)
+	mi.material_override = mat(Color(0.4, 0.27, 0.15))
+	body.add_child(mi)
+	var cs := CollisionShape3D.new()
+	var shape := CylinderShape3D.new()
+	shape.radius = 0.28
+	shape.height = 2.2
+	cs.shape = shape
+	cs.rotation_degrees = Vector3(0, 0, 90)
+	body.add_child(cs)
+	root.add_child(body)
+
+
+static func tree(root: Node3D, pos: Vector3) -> void:
+	cylinder(root, pos + Vector3(0, 1.0, 0), 0.4, 2.0, Color(0.35, 0.22, 0.12))
+	var c1 := MeshInstance3D.new()
+	var m1 := CylinderMesh.new()
+	m1.top_radius = 0.0
+	m1.bottom_radius = 1.8
+	m1.height = 4.5
+	c1.mesh = m1
+	c1.material_override = mat(Color(0.1, 0.35, 0.18))
+	c1.position = pos + Vector3(0, 4.2, 0)
+	root.add_child(c1)
+	var c2 := MeshInstance3D.new()
+	var m2 := CylinderMesh.new()
+	m2.top_radius = 0.0
+	m2.bottom_radius = 1.3
+	m2.height = 3.0
+	c2.mesh = m2
+	c2.material_override = mat(Color(0.12, 0.4, 0.2))
+	c2.position = pos + Vector3(0, 6.0, 0)
+	root.add_child(c2)
+
+
+static func build_camp(root: Node3D) -> Dictionary:
+	environment(root, Color(0.04, 0.06, 0.14), Color(0.3, 0.35, 0.55), 0.5, 0.35, Color(0.6, 0.7, 1.0))
+	box(root, Vector3(0, -0.5, 0), Vector3(70, 1, 70), Color(0.2, 0.32, 0.18))
+	box(root, Vector3(0, 0.25, 0), Vector3(1.8, 0.5, 1.8), Color(0.3, 0.3, 0.32))
+	flame(root)
+	log_seat(root, Vector3(-3.6, 0.28, 1.5), 50.0)
+	log_seat(root, Vector3(3.6, 0.28, 1.5), -50.0)
+	log_seat(root, Vector3(0, 0.28, -3.8), 0.0)
+
+	# Tienda
+	var tent := StaticBody3D.new()
+	tent.position = Vector3(-8, 1.5, -6)
+	var pm := PrismMesh.new()
+	pm.size = Vector3(4, 3, 5)
+	var tmi := MeshInstance3D.new()
+	tmi.mesh = pm
+	tmi.material_override = mat(Color(0.75, 0.6, 0.35))
+	tent.add_child(tmi)
+	var tcs := CollisionShape3D.new()
+	tcs.shape = pm.create_convex_shape()
+	tent.add_child(tcs)
+	root.add_child(tent)
+	tag(root, Vector3(-8, 4.0, -6), "Tienda")
+
+	# Baul
+	box(root, Vector3(8, 0.45, -6), Vector3(1.6, 0.9, 1.0), Color(0.45, 0.28, 0.14))
+	box(root, Vector3(8, 0.95, -6), Vector3(1.7, 0.2, 1.1), Color(0.9, 0.7, 0.2))
+	tag(root, Vector3(8, 2.2, -6), "Baúl")
+
+	for i in 18:
+		var a := TAU * i / 18.0
+		tree(root, Vector3(cos(a) * 24.0, 0, sin(a) * 24.0))
+
+	portal(root, Vector3(0, 0, 14), "world", "Volver al mundo", Color(1.0, 0.8, 0.3))
+	return {"spawn": Vector3(0, 1.1, 8)}
