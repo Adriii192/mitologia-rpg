@@ -42,9 +42,15 @@ jobs:
           mkdir -p "$HOME/.local/share/godot/export_templates"
           mv "$HOME/tpl/templates" "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
 
-      - name: Configurar firma y editor
+      - name: Configurar firma fija y editor
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
         run: |
-          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore "$HOME/debug.keystore" -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "Falta el secreto KEYSTORE_B64"
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$HOME/debug.keystore"
           mkdir -p "$HOME/.config/godot"
           cat > "$HOME/.config/godot/editor_settings-4.3.tres" <<EOF
           [gd_resource type="EditorSettings" format=3]
@@ -57,6 +63,11 @@ jobs:
           export/android/debug_keystore_pass = "android"
           EOF
           cp "$HOME/.config/godot/editor_settings-4.3.tres" "$HOME/.config/godot/editor_settings-4.tres"
+
+      - name: Subir el número de versión
+        run: |
+          sed -i "s/^version\/code=.*/version\/code=${{ github.run_number }}/" export_presets.cfg
+          sed -i "s/^version\/name=.*/version\/name=\"0.${{ github.run_number }}\"/" export_presets.cfg
 
       - name: Importar y exportar el APK
         run: |
