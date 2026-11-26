@@ -1,5 +1,7 @@
 extends RefCounted
 
+const Companion = preload("res://companion.gd")
+
 
 static func mat(color: Color, emission: float = 0.0) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -323,3 +325,105 @@ static func build_beach(root: Node3D) -> Dictionary:
 	tag(root, Vector3(0, 6.5, 14), "Playa de Creta")
 	portal(root, Vector3(0, 0, 36), "world", "Adentrarse en la isla", Color(0.3, 0.6, 1.0))
 	return {"spawn": Vector3(0, 1.1, 6)}
+
+
+# ---------- Casa del inicio ----------
+
+static func interact(root: Node3D, pos: Vector3, action: String, id: String, button: String, label_text: String) -> void:
+	var p := Node3D.new()
+	p.position = pos
+	p.add_to_group("portals")
+	p.set_meta("action", action)
+	p.set_meta("id", id)
+	p.set_meta("button", button)
+	if label_text != "":
+		tag(p, Vector3(0, 2.2, 0), label_text)
+	root.add_child(p)
+
+
+static func _lamp(root: Node3D, pos: Vector3, color: Color, energy: float, rng: float) -> void:
+	var l := OmniLight3D.new()
+	l.light_color = color
+	l.light_energy = energy
+	l.omni_range = rng
+	l.position = pos
+	root.add_child(l)
+
+
+static func build_house(root: Node3D) -> Dictionary:
+	environment(root, Color(0.03, 0.04, 0.1), Color(0.5, 0.5, 0.62), 0.45, 0.12, Color(0.6, 0.7, 1.0))
+	var wallc := Color(0.9, 0.84, 0.72)
+	var wood := Color(0.55, 0.38, 0.22)
+	# Suelo exterior y planta baja
+	box(root, Vector3(0, -1.5, 0), Vector3(80, 1, 80), Color(0.1, 0.2, 0.12))
+	box(root, Vector3(0, -0.5, 0), Vector3(20, 1, 16), wood)
+	# Muros exteriores
+	box(root, Vector3(-10.15, 3.8, 0), Vector3(0.3, 7.6, 16.6), wallc)
+	box(root, Vector3(10.15, 3.8, 0), Vector3(0.3, 7.6, 16.6), wallc)
+	box(root, Vector3(0, 3.8, -8.15), Vector3(20.6, 7.6, 0.3), wallc)
+	box(root, Vector3(0, 3.8, 8.15), Vector3(20.6, 7.6, 0.3), wallc)
+	# Techo
+	box(root, Vector3(0, 7.75, 0), Vector3(21, 0.3, 17), Color(0.35, 0.22, 0.2))
+	# Segundo piso (con hueco para la escalera)
+	box(root, Vector3(-1.7, 3.65, 0), Vector3(16.6, 0.3, 16), wood)
+	box(root, Vector3(8.3, 3.65, -5.5), Vector3(3.4, 0.3, 5), wood)
+	box(root, Vector3(8.3, 3.65, 6.75), Vector3(3.4, 0.3, 2.5), wood)
+	# Rampa de la escalera (colision) + peldanos decorativos
+	var ramp := StaticBody3D.new()
+	ramp.position = Vector3(8.0, 1.734, 1.0)
+	ramp.rotation_degrees = Vector3(25.4, 0, 0)
+	var rcs := CollisionShape3D.new()
+	var rbs := BoxShape3D.new()
+	rbs.size = Vector3(2.4, 0.3, 8.857)
+	rcs.shape = rbs
+	ramp.add_child(rcs)
+	var rmi := MeshInstance3D.new()
+	var rbm := BoxMesh.new()
+	rbm.size = Vector3(2.4, 0.3, 8.857)
+	rmi.mesh = rbm
+	rmi.material_override = mat(Color(0.62, 0.45, 0.28))
+	ramp.add_child(rmi)
+	root.add_child(ramp)
+	for i in 8:
+		var zz: float = 4.5 - float(i)
+		var yy: float = (5.0 - zz) * 0.475 + 0.17
+		deco_box(root, Vector3(8.0, yy, zz + 0.45), Vector3(2.4, 0.04, 0.1), Color(0.3, 0.2, 0.12))
+	# Barandillas del hueco
+	box(root, Vector3(6.6, 4.35, 1.25), Vector3(0.1, 1.1, 8.5), Color(0.4, 0.27, 0.15))
+	box(root, Vector3(8.3, 4.35, 5.5), Vector3(3.4, 1.1, 0.1), Color(0.4, 0.27, 0.15))
+	# Salon: sofa, tele, mesa de centro, comedor, cocina
+	box(root, Vector3(-6.8, 0.4, 2.8), Vector3(1.3, 0.8, 3.4), Color(0.3, 0.38, 0.6))
+	box(root, Vector3(-7.4, 0.9, 2.8), Vector3(0.3, 1.0, 3.4), Color(0.26, 0.33, 0.55))
+	box(root, Vector3(-4.4, 0.25, 2.8), Vector3(1.0, 0.5, 1.7), Color(0.45, 0.3, 0.18))
+	box(root, Vector3(-1.2, 0.35, 2.8), Vector3(0.7, 0.7, 2.2), Color(0.3, 0.2, 0.14))
+	deco_box(root, Vector3(-0.78, 1.15, 2.8), Vector3(0.1, 1.0, 1.9), Color(0.2, 0.45, 0.8), Vector3.ZERO, 1.2)
+	_lamp(root, Vector3(-0.2, 1.4, 2.8), Color(0.4, 0.6, 1.0), 0.8, 5.0)
+	box(root, Vector3(-4.0, 0.4, -5.8), Vector3(3.0, 0.8, 1.4), Color(0.5, 0.33, 0.2))
+	box(root, Vector3(3.0, 0.5, -7.3), Vector3(6.0, 1.0, 0.9), Color(0.8, 0.8, 0.82))
+	# Padres
+	var papa: Node3D = Companion.person(Color(0.25, 0.5, 0.55), "Papá")
+	papa.position = Vector3(-5.8, 0, -3.5)
+	root.add_child(papa)
+	var mama: Node3D = Companion.person(Color(0.7, 0.35, 0.55), "Mamá")
+	mama.position = Vector3(-2.2, 0, -3.5)
+	root.add_child(mama)
+	interact(root, Vector3(-5.8, 0, -3.5), "talk", "papa", "HABLAR", "")
+	interact(root, Vector3(-2.2, 0, -3.5), "talk", "mama", "HABLAR", "")
+	# Habitacion de Aris (arriba)
+	box(root, Vector3(-7.5, 4.05, -6.2), Vector3(3.2, 0.5, 2.0), Color(0.75, 0.3, 0.3))
+	box(root, Vector3(-9.2, 4.45, -6.2), Vector3(0.3, 1.3, 2.0), wood)
+	deco_box(root, Vector3(-8.7, 4.4, -6.2), Vector3(0.7, 0.2, 1.2), Color(0.95, 0.95, 0.95))
+	interact(root, Vector3(-5.5, 3.8, -5.2), "sleep", "cama", "DORMIR", "")
+	box(root, Vector3(-1.5, 4.2, -7.2), Vector3(2.4, 0.8, 1.0), Color(0.5, 0.35, 0.2))
+	deco_box(root, Vector3(-1.5, 4.64, -7.2), Vector3(0.6, 0.08, 0.45), Color(0.5, 0.2, 0.12), Vector3(0, 15, 0))
+	deco_box(root, Vector3(-1.5, 4.7, -7.2), Vector3(0.5, 0.04, 0.36), Color(1.0, 0.9, 0.5), Vector3(0, 15, 0), 1.0)
+	interact(root, Vector3(-1.5, 3.8, -6.2), "talk", "libro", "LEER", "")
+	box(root, Vector3(-4.5, 4.2, 2.0), Vector3(0.6, 0.8, 5.0), Color(0.4, 0.3, 0.5))
+	# Ventana con luna
+	deco_box(root, Vector3(3.0, 5.4, -7.97), Vector3(3.0, 1.6, 0.05), Color(0.35, 0.5, 0.9), Vector3.ZERO, 0.8)
+	# Luces
+	_lamp(root, Vector3(-4, 3.0, 0), Color(1.0, 0.85, 0.6), 1.3, 12.0)
+	_lamp(root, Vector3(3, 3.0, -2), Color(1.0, 0.85, 0.6), 0.9, 9.0)
+	_lamp(root, Vector3(-3, 6.8, -3), Color(1.0, 0.85, 0.6), 1.3, 12.0)
+	_lamp(root, Vector3(-7.5, 5.6, -5.5), Color(1.0, 0.75, 0.45), 0.9, 6.0)
+	return {"spawn": Vector3(2, 1.1, 3)}

@@ -99,6 +99,10 @@ func _speaker_color(sp: String) -> Color:
 		return Color(0.3, 0.5, 0.9)
 	if sp == "Amaltea":
 		return Color(0.85, 0.65, 0.15)
+	if sp == "Mamá":
+		return Color(0.75, 0.35, 0.55)
+	if sp == "Papá":
+		return Color(0.25, 0.55, 0.5)
 	return Color(0.4, 0.4, 0.5)
 
 

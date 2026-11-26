@@ -76,3 +76,24 @@ static func build() -> Node3D:
 	tag.position = Vector3(0, 2.0, 0)
 	root.add_child(tag)
 	return root
+
+
+# Persona sencilla (padres de Aris). Mira hacia +Z.
+static func person(col: Color, label: String) -> Node3D:
+	var root := Node3D.new()
+	var cap := CapsuleMesh.new()
+	cap.radius = 0.36
+	cap.height = 1.5
+	_part(root, cap, Vector3(0, 0.85, 0), col)
+	_part(root, _sphere(0.28), Vector3(0, 1.85, 0), Color(0.95, 0.78, 0.65))
+	_part(root, _sphere(0.3), Vector3(0, 1.98, -0.05), Color(0.25, 0.17, 0.1))
+	_part(root, _sphere(0.04), Vector3(-0.1, 1.88, 0.25), Color(0.05, 0.05, 0.05))
+	_part(root, _sphere(0.04), Vector3(0.1, 1.88, 0.25), Color(0.05, 0.05, 0.05))
+	var tag := Label3D.new()
+	tag.text = label
+	tag.font_size = 40
+	tag.pixel_size = 0.01
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.position = Vector3(0, 2.7, 0)
+	root.add_child(tag)
+	return root

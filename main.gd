@@ -51,8 +51,8 @@ func _ready() -> void:
 	_build_player()
 	_build_camera()
 	_build_ui()
-	_load_zone("beach")
-	_play_intro()
+	_load_zone("house")
+	_play_house_intro()
 
 
 func _view() -> Vector2:
@@ -175,7 +175,7 @@ func _draw_ui() -> void:
 		ja = 0.55
 	ui.draw_circle(_jump_pos(), BTN_RADIUS, Color(1, 1, 1, ja))
 	_draw_button_text("SALTAR", _jump_pos())
-	if current_zone != "camp":
+	if _horn_available():
 		ui.draw_circle(_horn_pos(), BTN_RADIUS, Color(1.0, 0.8, 0.25, 0.5))
 		_draw_button_text("CUERNO", _horn_pos(), 24)
 	if near_portal != null:
@@ -183,7 +183,7 @@ func _draw_ui() -> void:
 		if act_id != -1:
 			aa = 0.7
 		ui.draw_circle(_act_pos(), BTN_RADIUS, Color(1, 0.85, 0.3, aa))
-		_draw_button_text("VIAJAR", _act_pos())
+		_draw_button_text(str(near_portal.get_meta("button", "VIAJAR")), _act_pos())
 
 
 func _load_zone(zone_name: String) -> void:
@@ -200,13 +200,18 @@ func _load_zone(zone_name: String) -> void:
 		State.heal_all()
 	elif zone_name == "beach":
 		info = Zones.build_beach(zone)
+	elif zone_name == "house":
+		info = Zones.build_house(zone)
 	else:
 		info = Zones.build_world(zone)
 		_spawn_enemies()
 	spawn_point = info["spawn"]
 	player.position = spawn_point
 	player.velocity = Vector3.ZERO
-	_spawn_companion()
+	player.scale = Vector3.ONE
+	player.rotation = Vector3.ZERO
+	if zone_name != "house":
+		_spawn_companion()
 	near_portal = null
 	ui.queue_redraw()
 
@@ -337,18 +342,134 @@ func _play_intro() -> void:
 		["Aris", "Claro que es un sueño. Me habré dormido con el libro encima."],
 		["", "Amaltea agacha la cabeza y le da un golpecito con uno de sus cuernos."],
 		["Aris", "¡Ay! ...Vale. Eso ha dolido demasiado para ser un sueño."],
-		["Amaltea", "Bienvenido a Creta, en los tiempos en que los dioses aún eran jóvenes. Tu libro te ha traído hasta aquí."],
-		["Aris", "¿Dentro del libro? ¿Y cómo vuelvo a casa?"],
-		["Amaltea", "Lo averiguaremos recorriendo la historia entera. No estarás solo: yo hablo con todos los animales que guían a los viajeros perdidos."],
-		["Amaltea", "Eres Aris, ¿verdad? Tu nombre sonó en el libro cuando caíste. Curioso... se parece al de alguien que conozco."],
-		["Amaltea", "Y mira mi cuerno dorado: se me rompió un día que cuidaba a un niño muy fuerte y muy travieso. Desde entonces da abundancia a quien lo sostiene."],
-		["Amaltea", "Con él podré llevarnos a un campamento seguro cuando lo necesites. Toca CUERNO y nos vamos."],
+		["Amaltea", "Bienvenido a Creta, en los tiempos en que los dioses aún eran jóvenes. Pero dime, náufrago, ¿cómo te llamas?"],
+		["Aris", "Aris. Me llamo Aris."],
+		["Amaltea", "¿Aris...? Qué curioso. Ese nombre me suena a alguien que conozco... pero eso es otra historia."],
+		["Aris", "¿Creta? ¿Los dioses? ¿Estoy dentro de mi libro? ¿Y cómo vuelvo a casa?"],
+		["Amaltea", "Pues... no tengo ni idea, la verdad. Solo sé que te encontré tirado en la arena con un libro brillando a tu lado."],
+		["Amaltea", "Mira, al menos algo útil: este cuerno dorado se me rompió un día que cuidaba a un niño muy fuerte y muy travieso. Desde entonces da abundancia a quien lo sostiene."],
+		["Amaltea", "Y, no sé por qué, también sé abrir un camino hasta un campamento seguro. Toca CUERNO y nos vamos."],
 		["Aris", "Un campamento... Vale. Esto es una locura, pero me gusta."],
-		["Amaltea", "¡Pues vamos, Aris! Explora la playa, que yo te sigo."],
+		["Amaltea", "Pues date una vuelta por la playa. Yo me quedo cerca."],
 	])
 	State.flags["intro_done"] = true
 	locked = false
 	_show_hint("Toca CUERNO para ir al campamento", 7.0)
+
+
+func _horn_available() -> bool:
+	return State.flags.has("intro_done") and current_zone != "camp" and current_zone != "house"
+
+
+func _camera_collision() -> void:
+	var from: Vector3 = cam_pivot.global_position
+	var want: Vector3 = cam_pivot.global_transform * Vector3(0, 0, 6.0)
+	var q := PhysicsRayQueryParameters3D.create(from, want)
+	q.exclude = [player.get_rid()]
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
+	var z: float = 6.0
+	if not hit.is_empty():
+		var d: float = from.distance_to(hit["position"])
+		z = clampf(d - 0.35, 0.8, 6.0)
+	camera.position.z = lerpf(camera.position.z, z, 0.5)
+
+
+func _do_action(node: Node3D) -> void:
+	var action: String = str(node.get_meta("action", "travel"))
+	if action == "travel":
+		_travel(str(node.get_meta("target")))
+	elif action == "talk":
+		_talk(str(node.get_meta("id")))
+	elif action == "sleep":
+		_play_bedtime()
+
+
+func _talk(id: String) -> void:
+	var lines: Array = []
+	if id == "papa":
+		lines = [["Papá", "¿Todavía despierto? Ese libro de mitología te tiene hechizado, ¿eh?"], ["Aris", "Es que las historias son increíbles, papá."]]
+	elif id == "mama":
+		lines = [["Mamá", "Es tarde, Aris. Mañana hay clase. ¿Seguro que no quieres un vaso de leche caliente?"], ["Aris", "No hace falta, mamá. Subo, leo un poco y me duermo."]]
+	elif id == "libro":
+		lines = [["Aris", "Mi libro de mitología griega. Lo leeré en la cama."]]
+	if lines.is_empty():
+		return
+	await _run_dialog(lines)
+
+
+func _play_house_intro() -> void:
+	if State.flags.has("house_intro"):
+		return
+	State.flags["house_intro"] = true
+	locked = true
+	_release_touches()
+	await _wait(0.6)
+	await _run_dialog([
+		["", "Es de noche. La casa está en silencio, salvo por la tele del salón."],
+		["Mamá", "Aris, cariño, ya es tarde. ¿No te vas a dormir?"],
+		["Aris", "Ya voy, mamá. Solo quiero leer un rato."],
+		["Papá", "¿Otra vez con ese libro de mitología? ¡Hasta mañana, campeón!"],
+	])
+	locked = false
+	_show_hint("Sube a tu habitación por las escaleras", 7.0)
+
+
+func _play_bedtime() -> void:
+	if locked:
+		return
+	locked = true
+	_release_touches()
+	var out := create_tween()
+	out.tween_property(fade, "color:a", 1.0, 0.6)
+	await out.finished
+	player.position = Vector3(-7.5, 4.8, -6.2)
+	player.rotation = Vector3(-PI * 0.5, 0, 0)
+	yaw = PI * 0.5
+	pitch = -0.45
+	var fx := Node3D.new()
+	zone.add_child(fx)
+	fx.position = Vector3(-7.5, 5.5, -5.6)
+	var glow := OmniLight3D.new()
+	glow.light_color = Color(1.0, 0.85, 0.4)
+	glow.light_energy = 0.0
+	glow.omni_range = 14.0
+	fx.add_child(glow)
+	var inn := create_tween()
+	inn.tween_property(fade, "color:a", 0.0, 0.8)
+	await inn.finished
+	await _run_dialog([
+		["Aris", "Solo un capítulo más..."],
+		["", "Abres el libro de mitología griega. Las páginas huelen a polvo y a historias muy antiguas."],
+		["Aris", "Cronos, los titanes... Zeus escondido en una cueva..."],
+		["", "Los párpados te pesan. Las letras empiezan a moverse solas sobre el papel."],
+		["", "De pronto, el libro brilla."],
+	])
+	var sparks: Array = []
+	for i in 30:
+		var s := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.07
+		sm.height = 0.14
+		s.mesh = sm
+		s.material_override = Zones.mat(Color(1.0, 0.85, 0.4), 3.0)
+		var ang: float = randf() * TAU
+		var r: float = randf_range(1.5, 3.2)
+		s.position = Vector3(cos(ang) * r, randf_range(-1.0, 2.0), sin(ang) * r)
+		fx.add_child(s)
+		sparks.append(s)
+	var fxt := create_tween().set_parallel(true)
+	fxt.tween_property(glow, "light_energy", 9.0, 2.6)
+	for s in sparks:
+		fxt.tween_property(s, "position", Vector3.ZERO, randf_range(1.6, 2.6)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	fxt.tween_property(player, "scale", Vector3(0.05, 0.05, 0.05), 2.4).set_delay(0.4)
+	await fxt.finished
+	fade.color = Color(1, 1, 1, 0)
+	var white := create_tween()
+	white.tween_property(fade, "color:a", 1.0, 1.0)
+	await white.finished
+	fade.color = Color(0, 0, 0, 1)
+	_load_zone("beach")
+	_play_intro()
 
 
 # ---------- Combate ----------
@@ -446,11 +567,11 @@ func _input(event: InputEvent) -> void:
 			if pos.distance_to(_jump_pos()) < BTN_RADIUS * 1.2 and jump_id == -1:
 				jump_id = event.index
 				jump_buffer = 0.15
-			elif current_zone != "camp" and pos.distance_to(_horn_pos()) < BTN_RADIUS * 1.2:
+			elif _horn_available() and pos.distance_to(_horn_pos()) < BTN_RADIUS * 1.2:
 				_travel("camp")
 			elif near_portal != null and pos.distance_to(_act_pos()) < BTN_RADIUS * 1.2 and act_id == -1:
 				act_id = event.index
-				_travel(str(near_portal.get_meta("target")))
+				_do_action(near_portal)
 			elif pos.x < half and joy_id == -1:
 				joy_id = event.index
 				joy_center = pos
@@ -485,6 +606,8 @@ func _input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if not in_battle:
+		_camera_collision()
 	if traveling or in_battle or in_dialog or locked:
 		return
 	var dir := Vector3(joy_vec.x, 0, joy_vec.y).rotated(Vector3.UP, yaw)
@@ -560,7 +683,7 @@ func _process(delta: float) -> void:
 		var p := n as Node3D
 		var dx := p.global_position.x - player.global_position.x
 		var dz := p.global_position.z - player.global_position.z
-		if Vector2(dx, dz).length() < 2.4 and absf(p.global_position.y - player.global_position.y) < 3.0:
+		if Vector2(dx, dz).length() < 2.4 and absf(p.global_position.y - player.global_position.y) < 2.2:
 			found = p
 	if found != near_portal:
 		near_portal = found
