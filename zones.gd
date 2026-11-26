@@ -241,5 +241,85 @@ static func build_camp(root: Node3D) -> Dictionary:
 		var a := TAU * i / 18.0
 		tree(root, Vector3(cos(a) * 24.0, 0, sin(a) * 24.0))
 
-	portal(root, Vector3(0, 0, 14), "world", "Volver al mundo", Color(1.0, 0.8, 0.3))
+	portal(root, Vector3(0, 0, 14), "return", "Volver", Color(1.0, 0.8, 0.3))
 	return {"spawn": Vector3(0, 1.1, 8)}
+
+
+# ---------- Playa del naufragio ----------
+
+static func deco_box(root: Node3D, pos: Vector3, size: Vector3, color: Color, rot_deg: Vector3 = Vector3.ZERO, emission: float = 0.0) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = mat(color, emission)
+	mi.position = pos
+	mi.rotation_degrees = rot_deg
+	root.add_child(mi)
+	return mi
+
+
+static func wall(root: Node3D, pos: Vector3, size: Vector3) -> void:
+	var body := StaticBody3D.new()
+	body.position = pos
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	cs.shape = bs
+	body.add_child(cs)
+	root.add_child(body)
+
+
+static func palm(root: Node3D, pos: Vector3, lean: float) -> void:
+	var trunk := deco_box(root, pos + Vector3(0, 2.6, 0), Vector3(0.45, 5.2, 0.45), Color(0.5, 0.36, 0.2), Vector3(0, 0, lean))
+	trunk.name = "Trunk"
+	var top: Vector3 = pos + Vector3(-sin(deg_to_rad(lean)) * 2.6, 5.1, 0)
+	for k in 5:
+		var leaf := deco_box(root, top, Vector3(3.4, 0.08, 0.9), Color(0.15, 0.55, 0.22), Vector3(0, k * 72.0, 0))
+		leaf.position = top + Vector3(0, -0.2, 0)
+		leaf.rotation_degrees = Vector3(0, k * 72.0, -14)
+
+
+static func build_beach(root: Node3D) -> Dictionary:
+	environment(root, Color(0.58, 0.8, 0.96), Color(0.7, 0.75, 0.85), 0.55, 0.8, Color(1.0, 0.96, 0.88))
+	# Arena
+	box(root, Vector3(0, -0.5, 26), Vector3(120, 1, 70), Color(0.76, 0.64, 0.4))
+	# Mar (solo visual) y espuma animada
+	deco_box(root, Vector3(0, -0.9, -50), Vector3(240, 1, 90), Color(0.15, 0.45, 0.75))
+	var foam := deco_box(root, Vector3(0, 0.03, -6.5), Vector3(120, 0.05, 1.0), Color(1, 1, 1, 1))
+	var tw := foam.create_tween().set_loops()
+	tw.tween_property(foam, "position:z", -4.8, 2.4).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(foam, "position:z", -6.8, 2.4).set_trans(Tween.TRANS_SINE)
+	# Paredes invisibles
+	wall(root, Vector3(0, 1.5, -7.6), Vector3(120, 3, 0.6))
+	wall(root, Vector3(-59.5, 1.5, 26), Vector3(0.6, 3, 70))
+	wall(root, Vector3(59.5, 1.5, 26), Vector3(0.6, 3, 70))
+	wall(root, Vector3(0, 1.5, 60.5), Vector3(120, 3, 0.6))
+	# Palmeras
+	palm(root, Vector3(-16, 0, 4), 6.0)
+	palm(root, Vector3(18, 0, 10), -7.0)
+	palm(root, Vector3(-22, 0, 24), 5.0)
+	palm(root, Vector3(25, 0, 28), -5.0)
+	palm(root, Vector3(-9, 0, 40), 4.0)
+	palm(root, Vector3(12, 0, 44), -4.0)
+	# Restos del naufragio
+	deco_box(root, Vector3(-13, 0.9, 13), Vector3(0.5, 2.0, 8.0), Color(0.42, 0.28, 0.16), Vector3(0, 18, 12))
+	deco_box(root, Vector3(-10.5, 0.6, 11.5), Vector3(0.5, 1.4, 6.0), Color(0.48, 0.32, 0.18), Vector3(0, 28, -15))
+	deco_box(root, Vector3(-15.5, 3.0, 15), Vector3(0.35, 6.0, 0.35), Color(0.4, 0.27, 0.15), Vector3(18, 0, 22))
+	deco_box(root, Vector3(-14.4, 3.6, 15.2), Vector3(0.05, 2.8, 2.2), Color(0.95, 0.93, 0.88), Vector3(18, 0, 22))
+	box(root, Vector3(-6, 0.45, 9), Vector3(1.0, 0.9, 1.0), Color(0.5, 0.33, 0.18))
+	box(root, Vector3(-7.1, 0.35, 10.2), Vector3(0.8, 0.7, 0.8), Color(0.45, 0.3, 0.17))
+	box(root, Vector3(8, 0.3, 17), Vector3(2.0, 0.6, 1.4), Color(0.55, 0.52, 0.48))
+	# El libro
+	deco_box(root, Vector3(1.6, 0.08, 6.6), Vector3(0.8, 0.12, 0.6), Color(0.5, 0.2, 0.12), Vector3(0, 20, 0))
+	deco_box(root, Vector3(1.6, 0.15, 6.6), Vector3(0.7, 0.06, 0.5), Color(1.0, 0.9, 0.5), Vector3(0, 20, 0), 1.6)
+	var glow := OmniLight3D.new()
+	glow.light_color = Color(1.0, 0.85, 0.4)
+	glow.light_energy = 1.2
+	glow.omni_range = 5.0
+	glow.position = Vector3(1.6, 0.8, 6.6)
+	root.add_child(glow)
+	tag(root, Vector3(1.6, 1.5, 6.6), "El libro")
+	tag(root, Vector3(0, 6.5, 14), "Playa de Creta")
+	portal(root, Vector3(0, 0, 36), "world", "Adentrarse en la isla", Color(0.3, 0.6, 1.0))
+	return {"spawn": Vector3(0, 1.1, 6)}

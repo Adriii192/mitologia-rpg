@@ -5,6 +5,10 @@ const HERO_NAME := "Aris"
 
 static var party: Array = []
 static var defeated: Dictionary = {}
+static var flags: Dictionary = {}
+static var last_zone: String = "world"
+static var last_pos: Vector3 = Vector3.ZERO
+static var has_last: bool = false
 
 
 static func _mk(n: String, col: Color, hp: int, mp: int, atk: int, defense: int, mag: int, skill: String, cost: int, kind: String, power: float):
