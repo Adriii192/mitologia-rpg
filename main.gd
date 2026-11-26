@@ -245,7 +245,7 @@ func _start_battle(enemy_node: Node3D) -> void:
 	battle = Battle.new()
 	add_child(battle)
 	battle.finished.connect(_on_battle_finished)
-	battle.setup(State.party, enemies)
+	battle.setup(State.party, enemies, zone, camera)
 
 
 func _on_battle_finished(result: String) -> void:
@@ -364,6 +364,7 @@ func _process(delta: float) -> void:
 	cam_pivot.rotation = Vector3(pitch, yaw, 0)
 	grace = maxf(0.0, grace - delta)
 	var hero = State.party[0]
+	info_label.visible = not in_battle
 	info_label.text = "%s Nv%d  PV %d/%d  |  FPS: %d" % [hero.fname, hero.level, hero.hp, hero.max_hp, Engine.get_frames_per_second()]
 	if in_battle or traveling:
 		return
