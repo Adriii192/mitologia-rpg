@@ -6,6 +6,7 @@ const Battle = preload("res://battle.gd")
 const Dialog = preload("res://dialog.gd")
 const Companion = preload("res://companion.gd")
 const House = preload("res://house.gd")
+const Character = preload("res://character.gd")
 
 const SPEED := 6.0
 const GRAVITY := 20.0
@@ -43,6 +44,9 @@ var cine_look := Vector3.ZERO
 var skip_ui: Control
 var house_info: Dictionary = {}
 var held_book: Node3D
+var walk_t := 0.0
+var last_ppos := Vector3.ZERO
+var anim_speed := 0.0
 const H1_FLOOR := 4.6
 var menu_layer: CanvasLayer
 var menu_ui: Control
@@ -180,20 +184,10 @@ func _default_joy_center() -> Vector2:
 func _build_player() -> void:
 	player = CharacterBody3D.new()
 	player.position = spawn_point
-	var mi := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = 0.4
-	cap.height = 1.8
-	mi.mesh = cap
-	mi.material_override = Zones.mat(Color(0.2, 0.4, 0.9))
-	player.add_child(mi)
-	var nose := MeshInstance3D.new()
-	var nm := BoxMesh.new()
-	nm.size = Vector3(0.2, 0.2, 0.4)
-	nose.mesh = nm
-	nose.position = Vector3(0, 0.5, -0.45)
-	nose.material_override = Zones.mat(Color(1, 0.8, 0.2))
-	player.add_child(nose)
+	var model: Node3D = Character.build(Color(0.15, 0.3, 0.7), Color(0.22, 0.25, 0.4), Color(0.95, 0.76, 0.6), Color(0.35, 0.2, 0.1), "messy", true)
+	model.name = "Model"
+	model.position = Vector3(0, -0.9, 0)
+	player.add_child(model)
 	held_book = Node3D.new()
 	held_book.visible = false
 	held_book.position = Vector3(0, 0.3, -0.55)
@@ -1101,7 +1095,23 @@ func _update_companion(delta: float) -> void:
 	body.position.y = lerpf(body.position.y, hop, delta * 14.0)
 
 
+func _animate_player(delta: float) -> void:
+	var model: Node3D = player.get_node_or_null("Model")
+	if model == null:
+		return
+	var d: Vector3 = player.global_position - last_ppos
+	last_ppos = player.global_position
+	d.y = 0.0
+	var sp: float = 0.0
+	if delta > 0.0 and d.length() < 3.0:
+		sp = clampf(d.length() / delta / SPEED, 0.0, 1.0)
+	anim_speed = lerpf(anim_speed, sp, 0.25)
+	walk_t += delta * (6.0 + anim_speed * 6.0)
+	Character.animate(model, walk_t, anim_speed)
+
+
 func _process(delta: float) -> void:
+	_animate_player(delta)
 	cam_pivot.global_position = player.global_position + Vector3(0, 1.5, 0)
 	cam_pivot.rotation = Vector3(pitch, yaw, 0)
 	grace = maxf(0.0, grace - delta)

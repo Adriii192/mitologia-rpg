@@ -488,8 +488,9 @@ static func build(root: Node3D) -> Dictionary:
 	lamp(root, Vector3(11.5, H1 + 1.6, 12.8), 0.6, 5.0)
 
 	# ---------- Habitacion de invitados ----------
-	bed(root, 11.0, -3.5, 2.2, 1.6, H1, Color(0.7, 0.55, 0.4), false)
-	fb(root, 12.6, -5.8, 0.5, 0.5, 0.6, wood_dark, H1)
+	bed(root, 11.9, -3.5, 2.3, 1.6, H1, Color(0.7, 0.55, 0.4), true)
+	fb(root, 13.3, -5.0, 0.5, 0.5, 0.6, wood_dark, H1)
+	fb(root, 13.3, -2.0, 0.5, 0.5, 0.6, wood_dark, H1)
 	fb(root, 5.0, -2.0, 0.8, 2.0, 2.4, wood_dark, H1)
 	lamp(root, Vector3(9.0, H1 + 3.4, -3.5), 0.9, 10.0)
 	# ---------- Bano 2 ----------
