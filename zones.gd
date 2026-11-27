@@ -1,6 +1,7 @@
 extends RefCounted
 
 const Companion = preload("res://companion.gd")
+const Tex = preload("res://textures.gd")
 const State = preload("res://state.gd")
 
 
@@ -12,6 +13,33 @@ static func mat(color: Color, emission: float = 0.0) -> StandardMaterial3D:
 		m.emission = color
 		m.emission_energy_multiplier = emission
 	return m
+
+
+static func tbox(root: Node3D, pos: Vector3, size: Vector3, tex_name: String, tint: Color = Color(1, 1, 1), tile: float = 2.5) -> void:
+	var body := StaticBody3D.new()
+	body.position = pos
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = Tex.mat(tex_name, tint, tile)
+	body.add_child(mi)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	cs.shape = bs
+	body.add_child(cs)
+	root.add_child(body)
+
+
+static func tdeco(root: Node3D, pos: Vector3, size: Vector3, tex_name: String, tint: Color = Color(1, 1, 1), tile: float = 2.5) -> void:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = Tex.mat(tex_name, tint, tile)
+	mi.position = pos
+	root.add_child(mi)
 
 
 static func box(root: Node3D, pos: Vector3, size: Vector3, color: Color) -> void:
@@ -106,7 +134,7 @@ static func portal(root: Node3D, pos: Vector3, target: String, label: String, co
 static func _place(root: Node3D, pts: Array, color: Color) -> void:
 	for p in pts:
 		var v: Vector3 = p
-		box(root, v - Vector3(0, 0.3, 0), Vector3(3, 0.6, 3), color)
+		tbox(root, v - Vector3(0, 0.3, 0), Vector3(3, 0.6, 3), "rock", Color(1, 1, 1), 2.0)
 
 
 static func build_world(root: Node3D) -> Dictionary:
@@ -190,7 +218,23 @@ static func log_seat(root: Node3D, pos: Vector3, yaw_deg: float) -> void:
 
 
 static func tree(root: Node3D, pos: Vector3) -> void:
-	cylinder(root, pos + Vector3(0, 1.0, 0), 0.4, 2.0, Color(0.35, 0.22, 0.12))
+	var trunk := StaticBody3D.new()
+	trunk.position = pos + Vector3(0, 1.0, 0)
+	var tmi := MeshInstance3D.new()
+	var tcm := CylinderMesh.new()
+	tcm.top_radius = 0.32
+	tcm.bottom_radius = 0.45
+	tcm.height = 2.0
+	tmi.mesh = tcm
+	tmi.material_override = Tex.mat("bark", Color(1, 1, 1), 1.2)
+	trunk.add_child(tmi)
+	var tcs := CollisionShape3D.new()
+	var tsh := CylinderShape3D.new()
+	tsh.radius = 0.4
+	tsh.height = 2.0
+	tcs.shape = tsh
+	trunk.add_child(tcs)
+	root.add_child(trunk)
 	var c1 := MeshInstance3D.new()
 	var m1 := CylinderMesh.new()
 	m1.top_radius = 0.0
@@ -286,7 +330,7 @@ static func palm(root: Node3D, pos: Vector3, lean: float) -> void:
 static func build_beach(root: Node3D) -> Dictionary:
 	environment(root, Color(0.58, 0.8, 0.96), Color(0.7, 0.75, 0.85), 0.55, 0.8, Color(1.0, 0.96, 0.88))
 	# Arena
-	box(root, Vector3(0, -0.5, 26), Vector3(120, 1, 70), Color(0.76, 0.64, 0.4))
+	tbox(root, Vector3(0, -0.5, 26), Vector3(120, 1, 70), "sand", Color(1, 1, 1), 3.0)
 	# Mar (solo visual) y espuma animada
 	deco_box(root, Vector3(0, -0.9, -50), Vector3(240, 1, 90), Color(0.15, 0.45, 0.75))
 	var foam := deco_box(root, Vector3(0, 0.03, -6.5), Vector3(120, 0.05, 1.0), Color(1, 1, 1, 1))
@@ -525,10 +569,10 @@ static func refresh_cap1(root: Node3D) -> void:
 
 static func build_cap1(root: Node3D) -> Dictionary:
 	environment(root, Color(0.55, 0.78, 0.95), Color(0.72, 0.76, 0.85), 0.6, 0.95, Color(1.0, 0.95, 0.85))
-	box(root, Vector3(0, -0.5, 0), Vector3(100, 1, 100), Color(0.3, 0.55, 0.26))
+	tbox(root, Vector3(0, -0.5, 0), Vector3(100, 1, 100), "grass", Color(1, 1, 1), 3.5)
 	# Camino de tierra
-	deco_box(root, Vector3(0, 0.02, 12), Vector3(5, 0.04, 70), Color(0.58, 0.46, 0.3))
-	deco_box(root, Vector3(0, 0.02, -22), Vector3(5, 0.04, 22), Color(0.58, 0.46, 0.3))
+	tdeco(root, Vector3(0, 0.03, 12), Vector3(5, 0.04, 70), "dirt", Color(1, 1, 1), 2.0)
+	tdeco(root, Vector3(0, 0.03, -22), Vector3(5, 0.04, 22), "dirt", Color(1, 1, 1), 2.0)
 	# Limites invisibles
 	wall(root, Vector3(0, 2, 48.5), Vector3(100, 4, 1))
 	wall(root, Vector3(-48.5, 2, 0), Vector3(1, 4, 100))
@@ -536,13 +580,13 @@ static func build_cap1(root: Node3D) -> Dictionary:
 	wall(root, Vector3(0, 2, -49.5), Vector3(100, 4, 1))
 	# Acantilado de la cueva (con puerta central)
 	var rockc := Color(0.5, 0.47, 0.44)
-	box(root, Vector3(-27.5, 5, -34), Vector3(43, 10, 3), rockc)
-	box(root, Vector3(27.5, 5, -34), Vector3(43, 10, 3), rockc)
-	box(root, Vector3(0, 8.5, -34), Vector3(12, 3, 3), rockc)
+	tbox(root, Vector3(-27.5, 5, -34), Vector3(43, 10, 3), "rock", Color(1, 1, 1), 3.0)
+	tbox(root, Vector3(27.5, 5, -34), Vector3(43, 10, 3), "rock", Color(1, 1, 1), 3.0)
+	tbox(root, Vector3(0, 8.5, -34), Vector3(12, 3, 3), "rock", Color(1, 1, 1), 3.0)
 	# Paredes de la cueva
-	box(root, Vector3(-16, 4, -42), Vector3(1, 8, 16), Color(0.36, 0.34, 0.33))
-	box(root, Vector3(16, 4, -42), Vector3(1, 8, 16), Color(0.36, 0.34, 0.33))
-	box(root, Vector3(0, 4, -49.5), Vector3(32, 8, 1), Color(0.32, 0.3, 0.3))
+	tbox(root, Vector3(-16, 4, -42), Vector3(1, 8, 16), "rock", Color(0.6, 0.58, 0.62), 2.5)
+	tbox(root, Vector3(16, 4, -42), Vector3(1, 8, 16), "rock", Color(0.6, 0.58, 0.62), 2.5)
+	tbox(root, Vector3(0, 4, -49.5), Vector3(32, 8, 1), "rock", Color(0.6, 0.58, 0.62), 2.5)
 	deco_box(root, Vector3(0, 0.02, -42), Vector3(30, 0.04, 14), Color(0.4, 0.37, 0.34))
 	var cave_light := OmniLight3D.new()
 	cave_light.light_color = Color(1.0, 0.8, 0.5)
@@ -558,7 +602,7 @@ static func build_cap1(root: Node3D) -> Dictionary:
 	var gb := BoxMesh.new()
 	gb.size = Vector3(12, 7, 3)
 	gm.mesh = gb
-	gm.material_override = mat(Color(0.38, 0.36, 0.35))
+	gm.material_override = Tex.mat("rock", Color(0.62, 0.62, 0.68), 2.0)
 	gate.add_child(gm)
 	var gcs := CollisionShape3D.new()
 	gcs.name = "Col"
@@ -583,11 +627,11 @@ static func build_cap1(root: Node3D) -> Dictionary:
 	# Ruta de rocas al fuego alto (oeste)
 	var rock := Color(0.55, 0.5, 0.45)
 	_place(root, [Vector3(-24, 1.0, -24), Vector3(-28, 2.0, -26), Vector3(-32, 3.0, -25), Vector3(-35, 4.0, -28)], rock)
-	box(root, Vector3(-39, 3.6, -30), Vector3(6, 0.8, 6), Color(0.5, 0.47, 0.43))
+	tbox(root, Vector3(-39, 3.6, -30), Vector3(6, 0.8, 6), "rock", Color(1, 1, 1), 2.0)
 	brazier(root, Vector3(-40, 4.0, -31), "b3")
 	# Ruta de rocas al cofre (este)
 	_place(root, [Vector3(22, 1.0, -26), Vector3(26, 2.0, -28), Vector3(30, 3.0, -27)], Color(0.6, 0.55, 0.4))
-	box(root, Vector3(35, 2.6, -27), Vector3(5, 0.8, 5), Color(0.5, 0.47, 0.43))
+	tbox(root, Vector3(35, 2.6, -27), Vector3(5, 0.8, 5), "rock", Color(1, 1, 1), 2.0)
 	chest(root, Vector3(36, 3.0, -27), "chest1")
 	# Curete
 	var cur: Node3D = Companion.person(Color(0.72, 0.55, 0.2), "Curete")

@@ -43,6 +43,10 @@ static func deco(root: Node3D, pos: Vector3, size: Vector3, m: Material, rot: Ve
 	return mi
 
 
+static func fab(c: Color) -> StandardMaterial3D:
+	return Tex.mat("carpet", c, 0.6)
+
+
 static func col(c: Color, emission: float = 0.0) -> StandardMaterial3D:
 	return Zones.mat(c, emission)
 
@@ -118,7 +122,7 @@ static func lamp(root: Node3D, pos: Vector3, energy: float, rng: float) -> void:
 
 
 static func chair(root: Node3D, x: float, z: float, dx: float, dz: float, y0: float = 0.0) -> void:
-	var wood: StandardMaterial3D = col(Color(0.5, 0.33, 0.2))
+	var wood: StandardMaterial3D = Tex.mat("wood", Color(0.8, 0.6, 0.45), 2.4)
 	fb(root, x, z, 0.5, 0.5, 0.5, wood, y0)
 	if absf(dx) > 0.5:
 		fb(root, x - dx * 0.21, z, 0.08, 0.5, 0.9, wood, y0 + 0.5)
@@ -134,19 +138,19 @@ static func table(root: Node3D, x: float, z: float, w: float, d: float, h: float
 
 
 static func bed(root: Node3D, x: float, z: float, w: float, d: float, y0: float, blanket: Color, along_x: bool = true) -> void:
-	var wood: StandardMaterial3D = col(Color(0.45, 0.3, 0.18))
+	var wood: StandardMaterial3D = Tex.mat("wood", Color(0.75, 0.55, 0.4), 2.4)
 	if along_x:
 		fb(root, x, z, w, d, 0.45, wood, y0)
-		fb(root, x, z, w - 0.2, d - 0.15, 0.22, col(blanket), y0 + 0.45)
+		fb(root, x, z, w - 0.2, d - 0.15, 0.22, fab(blanket), y0 + 0.45)
 		fb(root, x + w * 0.5 - 0.1, z, 0.15, d + 0.1, 1.1, wood, y0)
 		fb(root, x + w * 0.5 - 0.45, z, 0.5, d * 0.7, 0.16, col(Color(0.95, 0.95, 0.95)), y0 + 0.67)
 	else:
 		fb(root, x, z, w, d, 0.45, wood, y0)
-		fb(root, x, z, w - 0.15, d - 0.2, 0.22, col(blanket), y0 + 0.45)
+		fb(root, x, z, w - 0.15, d - 0.2, 0.22, fab(blanket), y0 + 0.45)
 
 
 static func bookshelf(root: Node3D, cx: float, z: float, wdt: float, y0: float, special: bool) -> Node3D:
-	var wood: StandardMaterial3D = col(Color(0.42, 0.28, 0.16))
+	var wood: StandardMaterial3D = Tex.mat("wood", Color(0.7, 0.5, 0.35), 2.4)
 	var hgt: float = 2.6
 	fb(root, cx - wdt * 0.5, z, 0.08, 0.45, hgt, wood, y0)
 	fb(root, cx + wdt * 0.5, z, 0.08, 0.45, hgt, wood, y0)
@@ -233,8 +237,8 @@ static func build(root: Node3D) -> Dictionary:
 	var m_roof: StandardMaterial3D = Tex.mat("roof", Color(1, 1, 1), 2.0)
 	var m_grass: StandardMaterial3D = Tex.mat("grass", Color(1, 1, 1), 4.0)
 	var m_conc: StandardMaterial3D = Tex.mat("concrete", Color(0.85, 0.85, 0.85), 2.0)
-	var wood_dark: StandardMaterial3D = col(Color(0.4, 0.27, 0.16))
-	var wood_mid: StandardMaterial3D = col(Color(0.58, 0.4, 0.24))
+	var wood_dark: StandardMaterial3D = Tex.mat("wood", Color(0.55, 0.4, 0.3), 2.4)
+	var wood_mid: StandardMaterial3D = Tex.mat("wood", Color(0.95, 0.8, 0.62), 2.4)
 
 	# ---------- Exterior ----------
 	solid(root, Vector3(0, -0.55, 0), Vector3(140, 1, 140), m_grass)
@@ -374,22 +378,22 @@ static func build(root: Node3D) -> Dictionary:
 	# ---------- Vestibulo ----------
 	fb(root, -2.8, 13.4, 1.8, 0.5, 0.9, wood_dark)
 	deco(root, Vector3(-2.8, 2.0, 13.78), Vector3(1.2, 1.2, 0.04), col(Color(0.75, 0.85, 0.9), 0.4))
-	deco(root, Vector3(0, 0.05, 9.0), Vector3(3.0, 0.03, 4.0), col(Color(0.62, 0.2, 0.2)))
+	deco(root, Vector3(0, 0.05, 9.0), Vector3(3.0, 0.03, 4.0), fab(Color(0.62, 0.2, 0.2)))
 	fb(root, 2.9, 8.0, 0.5, 0.6, 0.6, wood_mid)
 	lamp(root, Vector3(0, 3.5, 9.0), 1.2, 11.0)
 	lamp(root, Vector3(0, 3.5, -5.0), 1.1, 11.0)
 
 	# ---------- Salon ----------
-	fb(root, -8.4, 5.2, 1.1, 3.4, 0.5, col(Color(0.3, 0.38, 0.6)))
-	fb(root, -7.7, 5.2, 0.3, 3.4, 0.55, col(Color(0.26, 0.33, 0.55)), 0.5)
-	fb(root, -8.4, 10.2, 1.1, 2.0, 0.5, col(Color(0.3, 0.38, 0.6)))
-	fb(root, -7.7, 10.2, 0.3, 2.0, 0.55, col(Color(0.26, 0.33, 0.55)), 0.5)
+	fb(root, -8.4, 5.2, 1.1, 3.4, 0.5, fab(Color(0.3, 0.38, 0.6)))
+	fb(root, -7.7, 5.2, 0.3, 3.4, 0.55, fab(Color(0.26, 0.33, 0.55)), 0.5)
+	fb(root, -8.4, 10.2, 1.1, 2.0, 0.5, fab(Color(0.3, 0.38, 0.6)))
+	fb(root, -7.7, 10.2, 0.3, 2.0, 0.55, fab(Color(0.26, 0.33, 0.55)), 0.5)
 	table(root, -10.7, 7.4, 1.2, 2.4, 0.45, wood_dark)
 	fb(root, -13.5, 7.4, 0.6, 3.0, 0.6, wood_dark)
 	deco(root, Vector3(-13.6, 1.35, 7.4), Vector3(0.12, 1.1, 1.9), col(Color(0.2, 0.45, 0.8), 1.1))
-	fb(root, -9.6, 2.0, 1.1, 1.1, 0.5, col(Color(0.55, 0.3, 0.25)))
-	fb(root, -9.2, 1.5, 0.3, 1.0, 0.5, col(Color(0.5, 0.26, 0.22)), 0.5)
-	deco(root, Vector3(-10.6, 0.05, 7.4), Vector3(5.5, 0.03, 6.5), col(Color(0.75, 0.62, 0.45)))
+	fb(root, -9.6, 2.0, 1.1, 1.1, 0.5, fab(Color(0.55, 0.3, 0.25)))
+	fb(root, -9.2, 1.5, 0.3, 1.0, 0.5, fab(Color(0.5, 0.26, 0.22)), 0.5)
+	deco(root, Vector3(-10.6, 0.05, 7.4), Vector3(5.5, 0.03, 6.5), fab(Color(0.75, 0.62, 0.45)))
 	bookshelf(root, -11.0, 13.4, 3.6, 0.0, false)
 	lamp(root, Vector3(-9.0, 3.4, 7.0), 1.3, 12.0)
 	fb(root, -5.0, 13.0, 0.5, 0.5, 0.5, col(Color(0.55, 0.35, 0.2)))
@@ -427,7 +431,7 @@ static func build(root: Node3D) -> Dictionary:
 	table(root, -13.0, -3.5, 1.2, 3.0, 0.8, wood_dark)
 	chair(root, -11.7, -3.5, -1, 0)
 	bookshelf(root, -8.0, -6.6, 3.6, 0.0, false)
-	fb(root, -6.0, -1.5, 1.2, 0.9, 0.5, col(Color(0.3, 0.38, 0.6)))
+	fb(root, -6.0, -1.5, 1.2, 0.9, 0.5, fab(Color(0.3, 0.38, 0.6)))
 	deco(root, Vector3(-13.0, 0.88, -3.5), Vector3(0.5, 0.04, 0.7), col(Color(0.15, 0.15, 0.18)))
 	lamp(root, Vector3(-9.0, 3.4, -3.5), 1.0, 9.0)
 
@@ -454,15 +458,15 @@ static func build(root: Node3D) -> Dictionary:
 	lamp(root, Vector3(0, H1 + 3.4, -9.0), 0.9, 10.0)
 	fb(root, -3.4, 12.0, 0.5, 2.0, 0.8, wood_dark, H1)
 	deco(root, Vector3(-3.4, H1 + 1.3, 12.0), Vector3(0.6, 0.9, 0.6), col(Color(0.2, 0.55, 0.25)))
-	deco(root, Vector3(-1.5, H1 + 0.05, 0), Vector3(2.0, 0.03, 20.0), col(Color(0.55, 0.25, 0.25)))
+	deco(root, Vector3(-1.5, H1 + 0.05, 0), Vector3(2.0, 0.03, 20.0), fab(Color(0.55, 0.25, 0.25)))
 
 	# ---------- Habitacion de los padres ----------
 	bed(root, -11.9, 7.0, 3.0, 2.4, H1, Color(0.85, 0.82, 0.75))
 	fb(root, -13.2, 5.4, 0.5, 0.5, 0.6, wood_dark, H1)
 	fb(root, -13.2, 8.6, 0.5, 0.5, 0.6, wood_dark, H1)
 	fb(root, -9.0, 0.6, 2.4, 0.6, 0.9, wood_dark, H1)
-	fb(root, -6.0, 12.5, 1.0, 1.0, 0.5, col(Color(0.5, 0.3, 0.3)), H1)
-	deco(root, Vector3(-9.0, H1 + 0.05, 7.0), Vector3(4.5, 0.03, 5.0), col(Color(0.55, 0.45, 0.4)))
+	fb(root, -6.0, 12.5, 1.0, 1.0, 0.5, fab(Color(0.5, 0.3, 0.3)), H1)
+	deco(root, Vector3(-9.0, H1 + 0.05, 7.0), Vector3(4.5, 0.03, 5.0), fab(Color(0.55, 0.45, 0.4)))
 	lamp(root, Vector3(-9.0, H1 + 3.4, 7.0), 1.2, 12.0)
 	# Vestidor
 	fb(root, -13.4, -3.5, 0.6, 6.0, 2.4, wood_dark, H1)
@@ -483,7 +487,7 @@ static func build(root: Node3D) -> Dictionary:
 	table(root, 12.8, 0.9, 2.0, 1.0, 0.8, wood_mid, H1)
 	chair(root, 12.8, 2.1, 0, -1, H1)
 	deco(root, Vector3(12.8, H1 + 0.92, 0.8), Vector3(0.6, 0.04, 0.4), col(Color(0.15, 0.15, 0.18)))
-	deco(root, Vector3(9.0, H1 + 0.05, 7.0), Vector3(4.0, 0.03, 5.0), col(Color(0.2, 0.3, 0.45)))
+	deco(root, Vector3(9.0, H1 + 0.05, 7.0), Vector3(4.0, 0.03, 5.0), fab(Color(0.2, 0.3, 0.45)))
 	lamp(root, Vector3(9.0, H1 + 3.4, 7.0), 1.2, 12.0)
 	lamp(root, Vector3(11.5, H1 + 1.6, 12.8), 0.6, 5.0)
 
