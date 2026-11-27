@@ -155,6 +155,8 @@ func _make_model(f) -> Node3D:
 		_mesh_node(body, _sphere(0.05), Vector3(-0.12, 2.02, -0.27), Color(1, 0.15, 0.1), f, false)
 		_mesh_node(body, _sphere(0.05), Vector3(0.12, 2.02, -0.27), Color(1, 0.15, 0.1), f, false)
 		root.rotation.y = PI
+		if str(f.fname).find("Aelo") >= 0:
+			root.scale = Vector3(1.6, 1.6, 1.6)
 	else:
 		_mesh_node(body, _capsule(0.38, 1.6), Vector3(0, 0.8, 0), col, f, true)
 		_mesh_node(body, _sphere(0.3), Vector3(0, 1.95, 0), Color(0.86, 0.66, 0.48), f, true)

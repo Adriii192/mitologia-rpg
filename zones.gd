@@ -1,6 +1,7 @@
 extends RefCounted
 
 const Companion = preload("res://companion.gd")
+const State = preload("res://state.gd")
 
 
 static func mat(color: Color, emission: float = 0.0) -> StandardMaterial3D:
@@ -323,7 +324,7 @@ static func build_beach(root: Node3D) -> Dictionary:
 	root.add_child(glow)
 	tag(root, Vector3(1.6, 1.5, 6.6), "El libro")
 	tag(root, Vector3(0, 6.5, 14), "Playa de Creta")
-	portal(root, Vector3(0, 0, 36), "world", "Adentrarse en la isla", Color(0.3, 0.6, 1.0))
+	portal(root, Vector3(0, 0, 36), "cap1", "Adentrarse en el bosque", Color(0.3, 0.6, 1.0))
 	return {"spawn": Vector3(0, 1.1, 6)}
 
 
@@ -427,3 +428,193 @@ static func build_house(root: Node3D) -> Dictionary:
 	_lamp(root, Vector3(-3, 6.8, -3), Color(1.0, 0.85, 0.6), 1.3, 12.0)
 	_lamp(root, Vector3(-7.5, 5.6, -5.5), Color(1.0, 0.75, 0.45), 0.9, 6.0)
 	return {"spawn": Vector3(2, 1.1, 3)}
+
+
+# ---------- Capitulo 1: el bosque de Creta ----------
+
+static func cap1_enemies() -> Array:
+	return [
+		["c1", Vector3(-8, 0, 28), ["satiro", "satiro"]],
+		["c2", Vector3(12, 0, 14), ["satiro", "arpia"]],
+		["c3", Vector3(-15, 0, -3), ["arpia", "arpia"]],
+		["c4", Vector3(19, 0, -7), ["satiro", "satiro", "arpia"]],
+		["c5", Vector3(-24, 0, -22), ["arpia"]],
+		["c6", Vector3(0, 0, -22), ["satiro", "arpia"]],
+		["boss", Vector3(0, 0, -41), ["aelo"]],
+	]
+
+
+static func brazier(root: Node3D, pos: Vector3, id: String) -> void:
+	var b := Node3D.new()
+	b.name = "Brazier_" + id
+	b.position = pos
+	cylinder(b, Vector3(0, 0.6, 0), 0.7, 1.2, Color(0.45, 0.43, 0.4))
+	var bowl := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.9
+	cm.bottom_radius = 0.5
+	cm.height = 0.4
+	bowl.mesh = cm
+	bowl.material_override = mat(Color(0.3, 0.28, 0.27))
+	bowl.position = Vector3(0, 1.4, 0)
+	b.add_child(bowl)
+	var fire := Node3D.new()
+	fire.name = "Fire"
+	fire.visible = false
+	b.add_child(fire)
+	var f1 := MeshInstance3D.new()
+	var fm := CylinderMesh.new()
+	fm.top_radius = 0.0
+	fm.bottom_radius = 0.5
+	fm.height = 1.2
+	f1.mesh = fm
+	f1.material_override = mat(Color(1.0, 0.5, 0.12), 3.0)
+	f1.position = Vector3(0, 2.1, 0)
+	fire.add_child(f1)
+	var li := OmniLight3D.new()
+	li.light_color = Color(1.0, 0.6, 0.25)
+	li.light_energy = 2.5
+	li.omni_range = 9.0
+	li.position = Vector3(0, 2.6, 0)
+	fire.add_child(li)
+	root.add_child(b)
+	if State.flags.has(id):
+		fire.visible = true
+	else:
+		interact(root, pos, "brazier", id, "ENCENDER", "Fuego antiguo")
+		b.set_meta("unlit", true)
+
+
+static func chest(root: Node3D, pos: Vector3, id: String) -> void:
+	var c := Node3D.new()
+	c.name = "Chest_" + id
+	c.position = pos
+	box(c, Vector3(0, 0.4, 0), Vector3(1.4, 0.8, 0.9), Color(0.45, 0.28, 0.14))
+	var lid := deco_box(c, Vector3(0, 0.9, 0), Vector3(1.5, 0.2, 1.0), Color(0.9, 0.7, 0.2))
+	lid.name = "Lid"
+	if State.flags.has(id):
+		lid.position = Vector3(0, 1.1, -0.5)
+		lid.rotation_degrees = Vector3(-60, 0, 0)
+	root.add_child(c)
+	if not State.flags.has(id):
+		interact(root, pos, "chest", id, "ABRIR", "Cofre")
+
+
+static func refresh_cap1(root: Node3D) -> void:
+	for i in 3:
+		var id: String = "b" + str(i + 1)
+		var b: Node = root.get_node_or_null("Brazier_" + id)
+		if b != null:
+			b.get_node("Fire").visible = State.flags.has(id)
+		var s: Node = root.get_node_or_null("Gate/Sock" + str(i + 1))
+		if s != null:
+			(s as MeshInstance3D).material_override = mat(Color(1.0, 0.8, 0.25), 2.5) if State.flags.has(id) else mat(Color(0.2, 0.2, 0.22))
+	var ch: Node = root.get_node_or_null("Chest_chest1/Lid")
+	if ch != null and State.flags.has("chest1"):
+		var lid := ch as Node3D
+		lid.position = Vector3(0, 1.1, -0.5)
+		lid.rotation_degrees = Vector3(-60, 0, 0)
+	var gate: Node = root.get_node_or_null("Gate")
+	if gate != null and State.flags.has("gate_open"):
+		(gate.get_node("Col") as CollisionShape3D).disabled = true
+		var g := gate as Node3D
+		var tw := g.create_tween()
+		tw.tween_property(g, "position:y", g.position.y - 8.0, 2.0)
+		tw.tween_callback(g.queue_free)
+
+
+static func build_cap1(root: Node3D) -> Dictionary:
+	environment(root, Color(0.55, 0.78, 0.95), Color(0.72, 0.76, 0.85), 0.6, 0.95, Color(1.0, 0.95, 0.85))
+	box(root, Vector3(0, -0.5, 0), Vector3(100, 1, 100), Color(0.3, 0.55, 0.26))
+	# Camino de tierra
+	deco_box(root, Vector3(0, 0.02, 12), Vector3(5, 0.04, 70), Color(0.58, 0.46, 0.3))
+	deco_box(root, Vector3(0, 0.02, -22), Vector3(5, 0.04, 22), Color(0.58, 0.46, 0.3))
+	# Limites invisibles
+	wall(root, Vector3(0, 2, 48.5), Vector3(100, 4, 1))
+	wall(root, Vector3(-48.5, 2, 0), Vector3(1, 4, 100))
+	wall(root, Vector3(48.5, 2, 0), Vector3(1, 4, 100))
+	wall(root, Vector3(0, 2, -49.5), Vector3(100, 4, 1))
+	# Acantilado de la cueva (con puerta central)
+	var rockc := Color(0.5, 0.47, 0.44)
+	box(root, Vector3(-27.5, 5, -34), Vector3(43, 10, 3), rockc)
+	box(root, Vector3(27.5, 5, -34), Vector3(43, 10, 3), rockc)
+	box(root, Vector3(0, 8.5, -34), Vector3(12, 3, 3), rockc)
+	# Paredes de la cueva
+	box(root, Vector3(-16, 4, -42), Vector3(1, 8, 16), Color(0.36, 0.34, 0.33))
+	box(root, Vector3(16, 4, -42), Vector3(1, 8, 16), Color(0.36, 0.34, 0.33))
+	box(root, Vector3(0, 4, -49.5), Vector3(32, 8, 1), Color(0.32, 0.3, 0.3))
+	deco_box(root, Vector3(0, 0.02, -42), Vector3(30, 0.04, 14), Color(0.4, 0.37, 0.34))
+	var cave_light := OmniLight3D.new()
+	cave_light.light_color = Color(1.0, 0.8, 0.5)
+	cave_light.light_energy = 1.6
+	cave_light.omni_range = 22.0
+	cave_light.position = Vector3(0, 6, -42)
+	root.add_child(cave_light)
+	# Puerta de piedra
+	var gate := StaticBody3D.new()
+	gate.name = "Gate"
+	gate.position = Vector3(0, 3.5, -34)
+	var gm := MeshInstance3D.new()
+	var gb := BoxMesh.new()
+	gb.size = Vector3(12, 7, 3)
+	gm.mesh = gb
+	gm.material_override = mat(Color(0.38, 0.36, 0.35))
+	gate.add_child(gm)
+	var gcs := CollisionShape3D.new()
+	gcs.name = "Col"
+	var gbs := BoxShape3D.new()
+	gbs.size = Vector3(12, 7, 3)
+	gcs.shape = gbs
+	gate.add_child(gcs)
+	for i in 3:
+		var s := MeshInstance3D.new()
+		var sb := BoxMesh.new()
+		sb.size = Vector3(1.0, 1.0, 0.2)
+		s.mesh = sb
+		s.name = "Sock" + str(i + 1)
+		s.position = Vector3(-3.0 + 3.0 * i, 1.2, 1.6)
+		s.material_override = mat(Color(0.2, 0.2, 0.22))
+		gate.add_child(s)
+	root.add_child(gate)
+	tag(root, Vector3(0, 8.5, -31), "Cueva del monte")
+	# Fuegos antiguos
+	brazier(root, Vector3(-22, 0, -6), "b1")
+	brazier(root, Vector3(24, 0, -8), "b2")
+	# Ruta de rocas al fuego alto (oeste)
+	var rock := Color(0.55, 0.5, 0.45)
+	_place(root, [Vector3(-24, 1.0, -24), Vector3(-28, 2.0, -26), Vector3(-32, 3.0, -25), Vector3(-35, 4.0, -28)], rock)
+	box(root, Vector3(-39, 3.6, -30), Vector3(6, 0.8, 6), Color(0.5, 0.47, 0.43))
+	brazier(root, Vector3(-40, 4.0, -31), "b3")
+	# Ruta de rocas al cofre (este)
+	_place(root, [Vector3(22, 1.0, -26), Vector3(26, 2.0, -28), Vector3(30, 3.0, -27)], Color(0.6, 0.55, 0.4))
+	box(root, Vector3(35, 2.6, -27), Vector3(5, 0.8, 5), Color(0.5, 0.47, 0.43))
+	chest(root, Vector3(36, 3.0, -27), "chest1")
+	# Curete
+	var cur: Node3D = Companion.person(Color(0.72, 0.55, 0.2), "Curete")
+	cur.position = Vector3(5, 0, 36)
+	cur.rotation.y = deg_to_rad(40)
+	root.add_child(cur)
+	interact(root, Vector3(5, 0, 36), "talk", "curete", "HABLAR", "")
+	# Bosque
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	var keep: Array = [Vector3(-22, 0, -6), Vector3(24, 0, -8), Vector3(-38, 0, -29), Vector3(34, 0, -27), Vector3(-8, 0, 28), Vector3(12, 0, 14), Vector3(-15, 0, -3), Vector3(19, 0, -7), Vector3(-24, 0, -22), Vector3(0, 0, -22), Vector3(5, 0, 36), Vector3(0, 0, 44)]
+	var placed: int = 0
+	var tries: int = 0
+	while placed < 46 and tries < 600:
+		tries += 1
+		var p := Vector3(rng.randf_range(-44.0, 44.0), 0, rng.randf_range(-30.0, 46.0))
+		if absf(p.x) < 5.0:
+			continue
+		var ok: bool = true
+		for k in keep:
+			var kv: Vector3 = k
+			if Vector2(p.x - kv.x, p.z - kv.z).length() < 8.5:
+				ok = false
+				break
+		if ok:
+			tree(root, p)
+			placed += 1
+	tag(root, Vector3(0, 6.0, 44), "Bosque de Creta")
+	refresh_cap1(root)
+	return {"spawn": Vector3(0, 1.1, 44)}

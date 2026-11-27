@@ -33,6 +33,9 @@ var near_portal: Node3D = null
 var traveling := false
 var in_battle := false
 var in_dialog := false
+var in_menu := false
+var menu_layer: CanvasLayer
+var menu_ui: Control
 var locked := false
 var battle = null
 var dialog = null
@@ -51,8 +54,97 @@ func _ready() -> void:
 	_build_player()
 	_build_camera()
 	_build_ui()
+	if State.has_save():
+		_show_menu()
+	else:
+		_new_game()
+
+
+func _new_game() -> void:
+	State.reset()
+	State.ensure_party()
 	_load_zone("house")
 	_play_house_intro()
+
+
+func _show_menu() -> void:
+	in_menu = true
+	menu_layer = CanvasLayer.new()
+	menu_layer.layer = 30
+	add_child(menu_layer)
+	menu_ui = Control.new()
+	menu_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	menu_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_ui.draw.connect(_draw_menu)
+	menu_layer.add_child(menu_ui)
+
+
+func _menu_rects() -> Array:
+	var v: Vector2 = _view()
+	return [Rect2(v.x * 0.5 - 280.0, v.y * 0.5 - 10.0, 560.0, 110.0), Rect2(v.x * 0.5 - 280.0, v.y * 0.5 + 130.0, 560.0, 110.0)]
+
+
+func _draw_menu() -> void:
+	var v: Vector2 = _view()
+	menu_ui.draw_rect(Rect2(Vector2.ZERO, v), Color(0.04, 0.05, 0.12, 1.0))
+	var font: Font = ThemeDB.fallback_font
+	menu_ui.draw_string(font, Vector2(0, v.y * 0.5 - 150.0), "MITOLOGÍA RPG", HORIZONTAL_ALIGNMENT_CENTER, v.x, 90, Color(0.95, 0.8, 0.35))
+	menu_ui.draw_string(font, Vector2(0, v.y * 0.5 - 85.0), "Un viaje por el mundo de los mitos griegos", HORIZONTAL_ALIGNMENT_CENTER, v.x, 32, Color(0.8, 0.8, 0.9))
+	var labels: Array = ["CONTINUAR", "NUEVA PARTIDA"]
+	var rects: Array = _menu_rects()
+	for i in 2:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.2, 0.28, 0.5, 0.95) if i == 0 else Color(0.35, 0.2, 0.2, 0.95)
+		sb.border_color = Color(0.85, 0.7, 0.3)
+		sb.set_border_width_all(4)
+		sb.set_corner_radius_all(18)
+		var r: Rect2 = rects[i]
+		menu_ui.draw_style_box(sb, r)
+		menu_ui.draw_string(font, Vector2(r.position.x, r.position.y + 72.0), labels[i], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 48, Color(1, 1, 1))
+
+
+func _menu_touch(pos: Vector2) -> void:
+	var rects: Array = _menu_rects()
+	var r0: Rect2 = rects[0]
+	var r1: Rect2 = rects[1]
+	if r0.has_point(pos):
+		_close_menu()
+		_continue_game()
+	elif r1.has_point(pos):
+		_close_menu()
+		_new_game()
+
+
+func _close_menu() -> void:
+	in_menu = false
+	menu_layer.queue_free()
+	menu_layer = null
+
+
+func _continue_game() -> void:
+	var d: Dictionary = State.load_game()
+	if d.is_empty():
+		_new_game()
+		return
+	var z: String = str(d["zone"])
+	_load_zone(z)
+	if z != "camp" and z != "house":
+		player.position = d["pos"] + Vector3(0, 0.3, 0)
+		_place_companion()
+	grace = 3.0
+	_show_hint("Partida cargada", 2.5)
+
+
+func _autosave() -> void:
+	if in_menu or current_zone == "house" or not State.flags.has("intro_done"):
+		return
+	State.save_game(current_zone, player.global_position)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		if player != null and not in_battle:
+			_autosave()
 
 
 func _view() -> Vector2:
@@ -163,7 +255,7 @@ func _draw_button_text(text: String, center: Vector2, size: int = 26) -> void:
 
 
 func _draw_ui() -> void:
-	if in_battle or in_dialog or locked:
+	if in_menu or in_battle or in_dialog or locked:
 		return
 	var a := 0.2
 	if joy_id != -1:
@@ -203,8 +295,8 @@ func _load_zone(zone_name: String) -> void:
 	elif zone_name == "house":
 		info = Zones.build_house(zone)
 	else:
-		info = Zones.build_world(zone)
-		_spawn_enemies()
+		info = Zones.build_cap1(zone)
+		_spawn_enemies(Zones.cap1_enemies())
 	spawn_point = info["spawn"]
 	player.position = spawn_point
 	player.velocity = Vector3.ZERO
@@ -228,12 +320,7 @@ func _place_companion() -> void:
 	companion.position = player.position + Vector3(-2.0, -0.9, 1.5)
 
 
-func _spawn_enemies() -> void:
-	var defs: Array = [
-		["g1", Vector3(-9, 0, -3), ["satiro", "satiro"]],
-		["g2", Vector3(7, 0, -17), ["satiro", "arpia"]],
-		["g3", Vector3(-6, 0, 18), ["arpia", "arpia", "satiro"]],
-	]
+func _spawn_enemies(defs: Array) -> void:
 	for d in defs:
 		var id: String = d[0]
 		if State.defeated.has(id):
@@ -248,25 +335,25 @@ func _spawn_enemies() -> void:
 		for j in kinds.size():
 			var kind: String = kinds[j]
 			var ox: float = (j - (kinds.size() - 1) / 2.0) * 1.5
+			var info: Dictionary = State.enemy_info(kind)
+			var sc: float = float(info["scale"])
 			var mi := MeshInstance3D.new()
 			var cap := CapsuleMesh.new()
 			cap.radius = 0.45
 			cap.height = 1.8
 			mi.mesh = cap
-			var col := Color(0.65, 0.38, 0.2)
-			var label := "Sátiro"
-			if kind == "arpia":
-				col = Color(0.55, 0.25, 0.65)
-				label = "Arpía"
+			var col: Color = info["color"]
+			var label: String = str(info["name"])
 			mi.material_override = Zones.mat(col)
-			mi.position = Vector3(ox, 0.9, 0)
+			mi.scale = Vector3(sc, sc, sc)
+			mi.position = Vector3(ox, 0.9 * sc, 0)
 			n.add_child(mi)
 			var tag := Label3D.new()
 			tag.text = label
 			tag.font_size = 44
 			tag.pixel_size = 0.01
 			tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-			tag.position = Vector3(ox, 2.2, 0)
+			tag.position = Vector3(ox, 2.2 * sc + 0.1, 0)
 			n.add_child(tag)
 		var tw := n.create_tween().set_loops()
 		tw.tween_property(n, "position:y", 0.3, 0.7).set_trans(Tween.TRANS_SINE)
@@ -354,6 +441,7 @@ func _play_intro() -> void:
 	])
 	State.flags["intro_done"] = true
 	locked = false
+	_autosave()
 	_show_hint("Toca CUERNO para ir al campamento", 7.0)
 
 
@@ -382,6 +470,12 @@ func _do_action(node: Node3D) -> void:
 		_talk(str(node.get_meta("id")))
 	elif action == "sleep":
 		_play_bedtime()
+	elif action == "brazier":
+		_light_brazier(node)
+	elif action == "chest":
+		_open_chest(node)
+	elif action == "end":
+		_end_chapter()
 
 
 func _talk(id: String) -> void:
@@ -392,9 +486,23 @@ func _talk(id: String) -> void:
 		lines = [["Mamá", "Es tarde, Aris. Mañana hay clase. ¿Seguro que no quieres un vaso de leche caliente?"], ["Aris", "No hace falta, mamá. Subo, leo un poco y me duermo."]]
 	elif id == "libro":
 		lines = [["Aris", "Mi libro de mitología griega. Lo leeré en la cama."]]
+	elif id == "curete":
+		lines = [
+			["Curete", "¡Chist! Baja la voz, forastero. En este bosque hay que hablar bajito."],
+			["Aris", "¿Por qué? ¿Quién nos va a oír?"],
+			["Curete", "Las arpías. Vigilan la cueva del monte y no les gustan los ruidos. Ni los visitantes."],
+			["Curete", "La puerta de piedra solo se abre con los tres fuegos antiguos. Están en los claros del bosque, uno al oeste, otro al este... y otro, muy alto."],
+			["Aris", "Tres fuegos. Vale. ¿Y qué hay dentro de esa cueva?"],
+			["Curete", "Algo que nadie debe oír llorar. Eso es todo lo que puedo decirte."],
+			["Amaltea", "Qué conversación más animada. Yo no pregunto nada, que me pongo nerviosa."],
+		]
+		State.flags["curete"] = true
 	if lines.is_empty():
 		return
 	await _run_dialog(lines)
+	if id == "curete":
+		_show_hint("Enciende los tres fuegos antiguos para abrir la cueva", 6.0)
+		_autosave()
 
 
 func _play_house_intro() -> void:
@@ -472,6 +580,69 @@ func _play_bedtime() -> void:
 	_play_intro()
 
 
+# ---------- Capitulo 1 ----------
+
+func _drop_interact(node: Node3D) -> void:
+	node.remove_from_group("portals")
+	node.queue_free()
+	near_portal = null
+	ui.queue_redraw()
+
+
+func _light_brazier(node: Node3D) -> void:
+	var id: String = str(node.get_meta("id"))
+	State.flags[id] = true
+	_drop_interact(node)
+	Zones.refresh_cap1(zone)
+	var n: int = 0
+	for k in ["b1", "b2", "b3"]:
+		if State.flags.has(k):
+			n += 1
+	if n < 3:
+		_show_hint("Fuegos encendidos: %d/3" % n, 3.5)
+		_autosave()
+		return
+	await _run_dialog([["", "El tercer fuego prende. Se oye un crujido profundo, como si la montaña despertara."], ["Amaltea", "Eso ha sonado a puerta. A puerta grande."]])
+	State.flags["gate_open"] = true
+	Zones.refresh_cap1(zone)
+	_show_hint("La puerta de la cueva se ha abierto", 5.0)
+	_autosave()
+
+
+func _open_chest(node: Node3D) -> void:
+	var id: String = str(node.get_meta("id"))
+	State.flags[id] = true
+	_drop_interact(node)
+	Zones.refresh_cap1(zone)
+	for p in State.party:
+		p.max_hp += 6
+		p.hp += 6
+	await _run_dialog([["", "Dentro hay un fruto dorado que huele a miel y a verano. Lo compartís entre todos."], ["", "¡Los PV máximos de todo el grupo aumentan en 6!"]])
+	_autosave()
+
+
+func _boss_defeated() -> void:
+	State.flags["boss_done"] = true
+	await _run_dialog([
+		["", "La gran arpía cae entre un remolino de plumas oscuras y se desvanece con un chillido."],
+		["Aris", "¿Estáis todos bien? ...Creo que ahora sí que ha sido real."],
+		["Amaltea", "Del fondo de la cueva viene una luz. Y un sonido muy bajito... como de hipo."],
+	])
+	Zones.interact(zone, Vector3(0, 0, -46), "end", "fin", "ENTRAR", "Fondo de la cueva")
+
+
+func _end_chapter() -> void:
+	await _run_dialog([
+		["", "Al fondo de la cueva, en una cuna hecha de ramas y miel, algo se mueve entre las mantas."],
+		["Aris", "Amaltea... ¿esto qué es?"],
+		["Amaltea", "Ay, mira tú qué casualidad. Vamos a dejarlo dormir, que ha sido un día muy largo."],
+		["", "FIN DEL CAPÍTULO 1 - Continuará..."],
+	])
+	State.flags["cap1_done"] = true
+	_autosave()
+	_show_hint("Capítulo 1 completado. Toca CUERNO para ir al campamento", 7.0)
+
+
 # ---------- Combate ----------
 
 func _start_battle(enemy_node: Node3D) -> void:
@@ -514,11 +685,17 @@ func _on_battle_finished(result: String) -> void:
 			if away.length() < 0.1:
 				away = Vector3(0, 0, 1)
 			player.global_position += away.normalized() * 4.0
+	var won_id: String = ""
+	if battle_enemy != null and is_instance_valid(battle_enemy) and result == "win":
+		won_id = str(battle_enemy.get_meta("id"))
 	battle_enemy = null
 	if result == "lose":
 		State.has_last = false
-		_travel("camp", false)
+		await _travel("camp", false)
 	ui.queue_redraw()
+	if won_id == "boss":
+		await _boss_defeated()
+	_autosave()
 
 
 # ---------- Viajes ----------
@@ -547,9 +724,17 @@ func _travel(target: String, remember: bool = true) -> void:
 	tw2.tween_property(fade, "color:a", 0.0, 0.35)
 	await tw2.finished
 	traveling = false
+	_autosave()
+	if current_zone == "cap1" and not State.flags.has("cap1_enter"):
+		State.flags["cap1_enter"] = true
+		await _run_dialog([["", "El bosque de Creta huele a pino y a tierra húmeda. Todo está demasiado silencioso."], ["Amaltea", "Qué raro... normalmente aquí no se calla ni un grillo."]])
 
 
 func _input(event: InputEvent) -> void:
+	if in_menu:
+		if event is InputEventScreenTouch and event.pressed:
+			_menu_touch(event.position)
+		return
 	if in_battle:
 		if event is InputEventScreenTouch and event.pressed and battle != null:
 			battle.handle_touch(event.position)
