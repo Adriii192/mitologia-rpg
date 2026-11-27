@@ -137,13 +137,13 @@ static func table(root: Node3D, x: float, z: float, w: float, d: float, h: float
 			fb(root, x + sx * (w * 0.5 - 0.12), z + sz * (d * 0.5 - 0.12), 0.12, 0.12, h - 0.1, m, y0)
 
 
-static func bed(root: Node3D, x: float, z: float, w: float, d: float, y0: float, blanket: Color, along_x: bool = true) -> void:
+static func bed(root: Node3D, x: float, z: float, w: float, d: float, y0: float, blanket: Color, along_x: bool = true, head: float = 1.0) -> void:
 	var wood: StandardMaterial3D = Tex.mat("wood", Color(0.75, 0.55, 0.4), 2.4)
 	if along_x:
 		fb(root, x, z, w, d, 0.45, wood, y0)
 		fb(root, x, z, w - 0.2, d - 0.15, 0.22, fab(blanket), y0 + 0.45)
-		fb(root, x + w * 0.5 - 0.1, z, 0.15, d + 0.1, 1.1, wood, y0)
-		fb(root, x + w * 0.5 - 0.45, z, 0.5, d * 0.7, 0.16, col(Color(0.95, 0.95, 0.95)), y0 + 0.67)
+		fb(root, x + head * (w * 0.5 - 0.1), z, 0.15, d + 0.1, 1.1, wood, y0)
+		fb(root, x + head * (w * 0.5 - 0.45), z, 0.5, d * 0.7, 0.16, col(Color(0.95, 0.95, 0.95)), y0 + 0.67)
 	else:
 		fb(root, x, z, w, d, 0.45, wood, y0)
 		fb(root, x, z, w - 0.15, d - 0.2, 0.22, fab(blanket), y0 + 0.45)
@@ -198,6 +198,92 @@ static func person_with_talk(root: Node3D, c: Color, label: String, id: String, 
 	n.position = Vector3(0, 0.4, 0)
 	p.add_child(n)
 	return p
+
+
+static func _carp(root: Node3D, pos: Vector3, size: Vector3, c: Color, emission: float = 0.0, metal: bool = false) -> void:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	if emission > 0.0:
+		m.emission_enabled = true
+		m.emission = c
+		m.emission_energy_multiplier = emission
+	if metal:
+		m.metallic = 0.6
+		m.roughness = 0.3
+	var mi := _bm(size, m)
+	mi.position = pos
+	root.add_child(mi)
+
+
+# Coche rojo (frente hacia +X)
+static func car(root: Node3D, pos: Vector3) -> void:
+	var c := Node3D.new()
+	c.position = pos
+	root.add_child(c)
+	var paint: Color = Color(0.75, 0.1, 0.12)
+	var glass: Color = Color(0.12, 0.18, 0.28)
+	_carp(c, Vector3(0, 0.62, 0), Vector3(4.6, 0.55, 1.9), paint, 0.0, true)
+	_carp(c, Vector3(1.65, 0.97, 0), Vector3(1.3, 0.16, 1.8), paint, 0.0, true)
+	_carp(c, Vector3(-1.75, 0.97, 0), Vector3(1.1, 0.16, 1.8), paint, 0.0, true)
+	_carp(c, Vector3(-0.15, 1.3, 0), Vector3(2.0, 0.6, 1.7), paint, 0.0, true)
+	_carp(c, Vector3(-0.15, 1.34, 0), Vector3(1.8, 0.4, 1.74), glass, 0.15)
+	_carp(c, Vector3(-0.15, 1.64, 0), Vector3(1.7, 0.08, 1.74), paint, 0.0, true)
+	var ws := _bm(Vector3(0.08, 0.55, 1.6), col(glass, 0.15))
+	ws.position = Vector3(0.95, 1.3, 0)
+	ws.rotation_degrees = Vector3(0, 0, 35)
+	c.add_child(ws)
+	var rw := _bm(Vector3(0.08, 0.55, 1.6), col(glass, 0.15))
+	rw.position = Vector3(-1.25, 1.3, 0)
+	rw.rotation_degrees = Vector3(0, 0, -35)
+	c.add_child(rw)
+	# pilares
+	for pz in [-0.88, 0.88]:
+		_carp(c, Vector3(-0.15, 1.35, pz), Vector3(0.12, 0.42, 0.06), paint, 0.0, true)
+	_carp(c, Vector3(-0.15, 1.35, 0), Vector3(0.1, 0.42, 1.76), paint, 0.0, true)
+	# parachoques, faros, rejilla, retrovisores
+	_carp(c, Vector3(2.32, 0.5, 0), Vector3(0.16, 0.22, 1.95), Color(0.2, 0.2, 0.22))
+	_carp(c, Vector3(-2.32, 0.5, 0), Vector3(0.16, 0.22, 1.95), Color(0.2, 0.2, 0.22))
+	for fz in [-0.65, 0.65]:
+		_carp(c, Vector3(2.32, 0.78, fz), Vector3(0.08, 0.15, 0.36), Color(1.0, 0.95, 0.7), 2.0)
+		_carp(c, Vector3(-2.32, 0.8, fz), Vector3(0.08, 0.15, 0.36), Color(1.0, 0.1, 0.1), 1.5)
+	_carp(c, Vector3(2.32, 0.68, 0), Vector3(0.06, 0.18, 0.8), Color(0.08, 0.08, 0.1))
+	for mz in [-1.0, 1.0]:
+		_carp(c, Vector3(0.75, 1.12, mz), Vector3(0.14, 0.1, 0.2), paint)
+	# rayas de las puertas
+	for dz in [-0.96, 0.96]:
+		_carp(c, Vector3(-0.15, 0.7, dz), Vector3(0.04, 0.3, 0.02), Color(0.4, 0.05, 0.06))
+		_carp(c, Vector3(0.85, 0.62, dz), Vector3(0.02, 0.5, 0.02), Color(0.4, 0.05, 0.06))
+	# ruedas con llanta
+	for wx in [-1.5, 1.5]:
+		for wz in [-1.0, 1.0]:
+			var tire := MeshInstance3D.new()
+			var tm := CylinderMesh.new()
+			tm.top_radius = 0.4
+			tm.bottom_radius = 0.4
+			tm.height = 0.3
+			tire.mesh = tm
+			tire.material_override = col(Color(0.06, 0.06, 0.07))
+			tire.rotation_degrees = Vector3(90, 0, 0)
+			tire.position = Vector3(wx, 0.4, wz)
+			c.add_child(tire)
+			var rim := MeshInstance3D.new()
+			var rm := CylinderMesh.new()
+			rm.top_radius = 0.22
+			rm.bottom_radius = 0.22
+			rm.height = 0.32
+			rim.mesh = rm
+			rim.material_override = col(Color(0.75, 0.75, 0.8))
+			rim.rotation_degrees = Vector3(90, 0, 0)
+			rim.position = Vector3(wx, 0.4, wz)
+			c.add_child(rim)
+	var body := StaticBody3D.new()
+	body.position = Vector3(0, 0.85, 0)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(4.6, 1.5, 2.0)
+	cs.shape = bs
+	body.add_child(cs)
+	c.add_child(body)
 
 
 static func build(root: Node3D) -> Dictionary:
@@ -379,7 +465,6 @@ static func build(root: Node3D) -> Dictionary:
 	fb(root, -2.8, 13.4, 1.8, 0.5, 0.9, wood_dark)
 	deco(root, Vector3(-2.8, 2.0, 13.78), Vector3(1.2, 1.2, 0.04), col(Color(0.75, 0.85, 0.9), 0.4))
 	deco(root, Vector3(0, 0.05, 9.0), Vector3(3.0, 0.03, 4.0), fab(Color(0.62, 0.2, 0.2)))
-	fb(root, 2.9, 8.0, 0.5, 0.6, 0.6, wood_mid)
 	lamp(root, Vector3(0, 3.5, 9.0), 1.2, 11.0)
 	lamp(root, Vector3(0, 3.5, -5.0), 1.1, 11.0)
 
@@ -414,6 +499,7 @@ static func build(root: Node3D) -> Dictionary:
 	deco(root, Vector3(9.0, 1.1, 8.5), Vector3(0.6, 0.3, 0.6), col(Color(0.85, 0.35, 0.25)))
 	fb(root, 13.5, 8.0, 0.8, 3.5, 1.0, wood_dark)
 	lamp(root, Vector3(9.0, 3.3, 8.5), 1.3, 11.0)
+	deco(root, Vector3(9.0, 0.05, 8.5), Vector3(6.4, 0.03, 4.0), fab(Color(0.5, 0.33, 0.28)))
 
 	# ---------- Cocina ----------
 	fb(root, 8.25, -13.4, 7.5, 1.0, 1.0, col(Color(0.82, 0.82, 0.84)))
@@ -425,6 +511,8 @@ static func build(root: Node3D) -> Dictionary:
 	for sx in [7.9, 9.0, 10.1]:
 		fb(root, sx, -4.6, 0.45, 0.45, 0.7, col(Color(0.35, 0.25, 0.2)))
 	lamp(root, Vector3(9.0, 3.4, -6.0), 1.3, 12.0)
+	deco(root, Vector3(8.25, 0.05, -11.8), Vector3(4.0, 0.03, 1.0), fab(Color(0.2, 0.45, 0.5)))
+	deco(root, Vector3(9.0, 0.05, -2.5), Vector3(3.0, 0.03, 1.4), fab(Color(0.7, 0.5, 0.2)))
 	var mama: Node3D = person_with_talk(root, Color(0.7, 0.35, 0.55), "Mamá", "mama", Vector3(6.5, 0, -12.2), PI)
 
 	# ---------- Despacho (sala extra) ----------
@@ -434,22 +522,10 @@ static func build(root: Node3D) -> Dictionary:
 	fb(root, -6.0, -1.5, 1.2, 0.9, 0.5, fab(Color(0.3, 0.38, 0.6)))
 	deco(root, Vector3(-13.0, 0.88, -3.5), Vector3(0.5, 0.04, 0.7), col(Color(0.15, 0.15, 0.18)))
 	lamp(root, Vector3(-9.0, 3.4, -3.5), 1.0, 9.0)
+	deco(root, Vector3(-9.0, 0.05, -3.5), Vector3(4.2, 0.03, 3.6), fab(Color(0.4, 0.25, 0.3)))
 
 	# ---------- Garaje ----------
-	fb(root, -9.0, -10.5, 4.6, 2.1, 0.8, col(Color(0.7, 0.15, 0.15)), 0.35)
-	fb(root, -9.3, -10.5, 2.3, 1.9, 0.7, col(Color(0.6, 0.12, 0.12)), 1.15)
-	for wx2 in [-10.8, -7.2]:
-		for wz in [-11.5, -9.5]:
-			var wh := MeshInstance3D.new()
-			var wm := CylinderMesh.new()
-			wm.top_radius = 0.4
-			wm.bottom_radius = 0.4
-			wm.height = 0.3
-			wh.mesh = wm
-			wh.material_override = col(Color(0.08, 0.08, 0.08))
-			wh.rotation_degrees = Vector3(90, 0, 0)
-			wh.position = Vector3(wx2, 0.4, wz)
-			root.add_child(wh)
+	car(root, Vector3(-9.0, 0.0, -10.5))
 	fb(root, -9.0, -13.5, 6.0, 0.5, 2.0, wood_dark)
 	lamp(root, Vector3(-9.0, 3.4, -10.5), 0.9, 10.0)
 
@@ -461,7 +537,7 @@ static func build(root: Node3D) -> Dictionary:
 	deco(root, Vector3(-1.5, H1 + 0.05, 0), Vector3(2.0, 0.03, 20.0), fab(Color(0.55, 0.25, 0.25)))
 
 	# ---------- Habitacion de los padres ----------
-	bed(root, -11.9, 7.0, 3.0, 2.4, H1, Color(0.85, 0.82, 0.75))
+	bed(root, -11.9, 7.0, 3.0, 2.4, H1, Color(0.85, 0.82, 0.75), true, -1.0)
 	fb(root, -13.2, 5.4, 0.5, 0.5, 0.6, wood_dark, H1)
 	fb(root, -13.2, 8.6, 0.5, 0.5, 0.6, wood_dark, H1)
 	fb(root, -9.0, 0.6, 2.4, 0.6, 0.9, wood_dark, H1)
@@ -469,6 +545,7 @@ static func build(root: Node3D) -> Dictionary:
 	deco(root, Vector3(-9.0, H1 + 0.05, 7.0), Vector3(4.5, 0.03, 5.0), fab(Color(0.55, 0.45, 0.4)))
 	lamp(root, Vector3(-9.0, H1 + 3.4, 7.0), 1.2, 12.0)
 	# Vestidor
+	deco(root, Vector3(-9.0, H1 + 0.05, -3.5), Vector3(2.0, 0.03, 5.0), fab(Color(0.6, 0.25, 0.3)))
 	fb(root, -13.4, -3.5, 0.6, 6.0, 2.4, wood_dark, H1)
 	for k in 8:
 		deco(root, Vector3(-13.0, H1 + 1.6, -6.2 + float(k) * 0.65), Vector3(0.1, 1.2, 0.4), col(Color(0.3 + 0.08 * float(k % 4), 0.35, 0.5 - 0.05 * float(k % 3))))
@@ -479,6 +556,7 @@ static func build(root: Node3D) -> Dictionary:
 	fb(root, -6.5, -13.5, 2.0, 0.6, 0.9, col(Color(0.9, 0.9, 0.92)), H1)
 	deco(root, Vector3(-6.5, H1 + 1.8, -13.8), Vector3(1.6, 1.0, 0.05), col(Color(0.75, 0.85, 0.9), 0.4))
 	lamp(root, Vector3(-9.0, H1 + 3.4, -10.5), 0.9, 9.0)
+	deco(root, Vector3(-9.5, H1 + 0.05, -11.0), Vector3(1.8, 0.03, 1.1), fab(Color(0.3, 0.55, 0.65)))
 
 	# ---------- Habitacion de Aris ----------
 	bed(root, 12.2, 11.8, 2.3, 1.2, H1, Color(0.3, 0.45, 0.8))
@@ -497,11 +575,15 @@ static func build(root: Node3D) -> Dictionary:
 	fb(root, 13.3, -2.0, 0.5, 0.5, 0.6, wood_dark, H1)
 	fb(root, 5.0, -2.0, 0.8, 2.0, 2.4, wood_dark, H1)
 	lamp(root, Vector3(9.0, H1 + 3.4, -3.5), 0.9, 10.0)
+	deco(root, Vector3(9.0, H1 + 0.05, -3.5), Vector3(5.5, 0.03, 4.4), fab(Color(0.4, 0.5, 0.4)))
+	table(root, 6.6, -6.2, 1.6, 0.7, 0.75, wood_mid, H1)
+	chair(root, 6.6, -5.3, 0, -1, H1)
 	# ---------- Bano 2 ----------
 	fb(root, 12.5, -12.9, 2.2, 1.1, 0.7, col(Color(0.96, 0.96, 0.98)), H1)
 	fb(root, 9.5, -13.3, 0.6, 0.8, 0.5, col(Color(0.96, 0.96, 0.98)), H1)
 	fb(root, 6.5, -13.5, 2.0, 0.6, 0.9, col(Color(0.9, 0.9, 0.92)), H1)
 	lamp(root, Vector3(9.0, H1 + 3.4, -10.5), 0.9, 9.0)
+	deco(root, Vector3(9.5, H1 + 0.05, -11.0), Vector3(1.8, 0.03, 1.1), fab(Color(0.3, 0.55, 0.65)))
 
 	# ---------- Puerta de entrada (se cierra tras la llegada) ----------
 	var door := Node3D.new()
