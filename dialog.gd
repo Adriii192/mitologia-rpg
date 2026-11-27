@@ -94,6 +94,17 @@ func handle_touch() -> void:
 		finished.emit()
 
 
+func abort() -> void:
+	if not active:
+		return
+	active = false
+	if label != null:
+		label.visible = false
+	if ui != null:
+		ui.queue_redraw()
+	finished.emit()
+
+
 func _speaker_color(sp: String) -> Color:
 	if sp == "Aris":
 		return Color(0.3, 0.5, 0.9)

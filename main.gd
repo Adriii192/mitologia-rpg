@@ -5,6 +5,7 @@ const State = preload("res://state.gd")
 const Battle = preload("res://battle.gd")
 const Dialog = preload("res://dialog.gd")
 const Companion = preload("res://companion.gd")
+const House = preload("res://house.gd")
 
 const SPEED := 6.0
 const GRAVITY := 20.0
@@ -34,6 +35,15 @@ var traveling := false
 var in_battle := false
 var in_dialog := false
 var in_menu := false
+var cine_cam: Camera3D
+var cine_active := false
+var cine_skip := false
+var cine_pos := Vector3.ZERO
+var cine_look := Vector3.ZERO
+var skip_ui: Control
+var house_info: Dictionary = {}
+var held_book: Node3D
+const H1_FLOOR := 4.6
 var menu_layer: CanvasLayer
 var menu_ui: Control
 var locked := false
@@ -64,7 +74,7 @@ func _new_game() -> void:
 	State.reset()
 	State.ensure_party()
 	_load_zone("house")
-	_play_house_intro()
+	_play_arrival()
 
 
 func _show_menu() -> void:
@@ -184,6 +194,16 @@ func _build_player() -> void:
 	nose.position = Vector3(0, 0.5, -0.45)
 	nose.material_override = Zones.mat(Color(1, 0.8, 0.2))
 	player.add_child(nose)
+	held_book = Node3D.new()
+	held_book.visible = false
+	held_book.position = Vector3(0, 0.3, -0.55)
+	var hb := MeshInstance3D.new()
+	var hbm := BoxMesh.new()
+	hbm.size = Vector3(0.35, 0.5, 0.08)
+	hb.mesh = hbm
+	hb.material_override = Zones.mat(Color(0.08, 0.45, 0.5), 0.5)
+	held_book.add_child(hb)
+	player.add_child(held_book)
 	var cs := CollisionShape3D.new()
 	var shape := CapsuleShape3D.new()
 	shape.radius = 0.4
@@ -233,6 +253,15 @@ func _build_ui() -> void:
 	hint_label.offset_top = 90
 	hint_label.visible = false
 	layer.add_child(hint_label)
+	var skip_layer := CanvasLayer.new()
+	skip_layer.layer = 25
+	add_child(skip_layer)
+	skip_ui = Control.new()
+	skip_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	skip_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skip_ui.draw.connect(_draw_skip)
+	skip_ui.visible = false
+	skip_layer.add_child(skip_ui)
 	fade = ColorRect.new()
 	fade.color = Color(0, 0, 0, 0)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -293,7 +322,8 @@ func _load_zone(zone_name: String) -> void:
 	elif zone_name == "beach":
 		info = Zones.build_beach(zone)
 	elif zone_name == "house":
-		info = Zones.build_house(zone)
+		info = House.build(zone)
+		house_info = info
 	else:
 		info = Zones.build_cap1(zone)
 		_spawn_enemies(Zones.cap1_enemies())
@@ -302,6 +332,7 @@ func _load_zone(zone_name: String) -> void:
 	player.velocity = Vector3.ZERO
 	player.scale = Vector3.ONE
 	player.rotation = Vector3.ZERO
+	held_book.visible = false
 	if zone_name != "house":
 		_spawn_companion()
 	near_portal = null
@@ -468,8 +499,6 @@ func _do_action(node: Node3D) -> void:
 		_travel(str(node.get_meta("target")))
 	elif action == "talk":
 		_talk(str(node.get_meta("id")))
-	elif action == "sleep":
-		_play_bedtime()
 	elif action == "brazier":
 		_light_brazier(node)
 	elif action == "chest":
@@ -481,11 +510,15 @@ func _do_action(node: Node3D) -> void:
 func _talk(id: String) -> void:
 	var lines: Array = []
 	if id == "papa":
-		lines = [["Papá", "¿Todavía despierto? Ese libro de mitología te tiene hechizado, ¿eh?"], ["Aris", "Es que las historias son increíbles, papá."]]
+		if State.flags.has("dinner"):
+			lines = [["Papá", "Descansa, campeón. Mañana será otro día."]]
+		else:
+			lines = [["Papá", "Ey, campeón. ¿Ya has vuelto del cole? Luego en la cena me cuentas."], ["Aris", "Vale, papá."]]
 	elif id == "mama":
-		lines = [["Mamá", "Es tarde, Aris. Mañana hay clase. ¿Seguro que no quieres un vaso de leche caliente?"], ["Aris", "No hace falta, mamá. Subo, leo un poco y me duermo."]]
-	elif id == "libro":
-		lines = [["Aris", "Mi libro de mitología griega. Lo leeré en la cama."]]
+		if State.flags.has("dinner"):
+			lines = [["Mamá", "Buenas noches, cariño. Que duermas bien."]]
+		else:
+			lines = [["Mamá", "¡Hola, cariño! La cena casi está. Cuando huelas que está lista, pasa al comedor."], ["Aris", "Vale, mamá."]]
 	elif id == "curete":
 		lines = [
 			["Curete", "¡Chist! Baja la voz, forastero. En este bosque hay que hablar bajito."],
@@ -505,77 +538,292 @@ func _talk(id: String) -> void:
 		_autosave()
 
 
-func _play_house_intro() -> void:
-	if State.flags.has("house_intro"):
-		return
-	State.flags["house_intro"] = true
+# ---------- Cinematicas ----------
+
+func _skip_rect() -> Rect2:
+	return Rect2(_view().x - 300.0, 24.0, 270.0, 90.0)
+
+
+func _draw_skip() -> void:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0.55)
+	sb.border_color = Color(1, 1, 1, 0.8)
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(16)
+	var r: Rect2 = _skip_rect()
+	skip_ui.draw_style_box(sb, r)
+	skip_ui.draw_string(ThemeDB.fallback_font, Vector2(r.position.x, r.position.y + 58.0), "SALTAR >>", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 36, Color(1, 1, 1))
+
+
+func _cine_start() -> void:
+	cine_active = true
+	cine_skip = false
 	locked = true
 	_release_touches()
-	await _wait(0.6)
-	await _run_dialog([
-		["", "Es de noche. La casa está en silencio, salvo por la tele del salón."],
-		["Mamá", "Aris, cariño, ya es tarde. ¿No te vas a dormir?"],
-		["Aris", "Ya voy, mamá. Solo quiero leer un rato."],
-		["Papá", "¿Otra vez con ese libro de mitología? ¡Hasta mañana, campeón!"],
-	])
+	if cine_cam == null:
+		cine_cam = Camera3D.new()
+		add_child(cine_cam)
+	cine_cam.fov = 60.0
+	cine_cam.current = true
+	skip_ui.visible = true
+	skip_ui.queue_redraw()
+
+
+func _cine_end() -> void:
+	cine_active = false
+	cine_skip = false
 	locked = false
-	_show_hint("Sube a tu habitación por las escaleras", 7.0)
+	camera.current = true
+	skip_ui.visible = false
+	ui.queue_redraw()
 
 
-func _play_bedtime() -> void:
-	if locked:
+func _capply() -> void:
+	cine_cam.global_position = cine_pos
+	cine_cam.look_at(cine_look, Vector3.UP)
+
+
+func _cset(pos: Vector3, look: Vector3) -> void:
+	cine_pos = pos
+	cine_look = look
+	_capply()
+
+
+func _ccam(pos: Vector3, look: Vector3, dur: float) -> void:
+	var p0: Vector3 = cine_pos
+	var l0: Vector3 = cine_look
+	if cine_skip:
+		_cset(pos, look)
 		return
-	locked = true
-	_release_touches()
-	var out := create_tween()
-	out.tween_property(fade, "color:a", 1.0, 0.6)
-	await out.finished
-	player.position = Vector3(-7.5, 4.8, -6.2)
-	player.rotation = Vector3(-PI * 0.5, 0, 0)
-	yaw = PI * 0.5
-	pitch = -0.45
-	var fx := Node3D.new()
-	zone.add_child(fx)
-	fx.position = Vector3(-7.5, 5.5, -5.6)
-	var glow := OmniLight3D.new()
-	glow.light_color = Color(1.0, 0.85, 0.4)
-	glow.light_energy = 0.0
-	glow.omni_range = 14.0
-	fx.add_child(glow)
-	var inn := create_tween()
-	inn.tween_property(fade, "color:a", 0.0, 0.8)
-	await inn.finished
-	await _run_dialog([
-		["Aris", "Solo un capítulo más..."],
-		["", "Abres el libro de mitología griega. Las páginas huelen a polvo y a historias muy antiguas."],
-		["Aris", "Cronos, los titanes... Zeus escondido en una cueva..."],
-		["", "Los párpados te pesan. Las letras empiezan a moverse solas sobre el papel."],
+	var tw := create_tween()
+	tw.tween_method(func(t: float) -> void:
+		cine_pos = p0.lerp(pos, t)
+		cine_look = l0.lerp(look, t)
+		_capply(), 0.0, 1.0, dur).set_trans(Tween.TRANS_SINE)
+	while tw.is_running() and not cine_skip:
+		await get_tree().process_frame
+	if cine_skip:
+		tw.kill()
+	_cset(pos, look)
+
+
+func _cmove(node: Node, prop: String, to, dur: float) -> void:
+	if cine_skip:
+		node.set_indexed(prop, to)
+		return
+	var tw := create_tween()
+	tw.tween_property(node, prop, to, dur)
+	while tw.is_running() and not cine_skip:
+		await get_tree().process_frame
+	if cine_skip:
+		tw.kill()
+	node.set_indexed(prop, to)
+
+
+func _cw(secs: float) -> void:
+	var t: float = 0.0
+	while t < secs and not cine_skip:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+
+
+func _cd(lines: Array) -> void:
+	if cine_skip:
+		return
+	await _run_dialog(lines)
+
+
+func _cfade(to_a: float, dur: float) -> void:
+	await _cmove(fade, "color:a", to_a, dur)
+
+
+func _face(node: Node3D, dx: float, dz: float) -> void:
+	node.rotation.y = atan2(-dx, -dz)
+
+
+func _check_house_triggers() -> void:
+	var p: Vector3 = player.global_position
+	if State.flags.has("arrival") and not State.flags.has("dinner"):
+		if p.x > 5.5 and p.x < 13.5 and p.z > 3.0 and p.z < 13.5 and p.y < 2.5:
+			_play_dinner()
+	elif State.flags.has("dinner") and not State.flags.has("book_seen"):
+		if p.y > 4.0 and p.x > 5.0 and p.x < 13.5 and p.z > 1.0 and p.z < 13.5:
+			_play_book()
+
+
+func _play_arrival() -> void:
+	State.flags["arrival"] = true
+	_cine_start()
+	fade.color = Color(0, 0, 0, 1)
+	var door: Node3D = house_info["door"]
+	door.visible = false
+	player.position = Vector3(0, 1.0, 31)
+	player.rotation = Vector3.ZERO
+	yaw = 0.0
+	pitch = -0.3
+	_cset(Vector3(9, 2.4, 37), Vector3(0, 3.0, 14))
+	await _cd([["", "Viernes por la tarde. El sol se esconde tras los tejados del barrio."]])
+	await _cfade(0.0, 1.2)
+	_ccam(Vector3(4.5, 1.7, 25.5), Vector3(0, 1.4, 18), 3.6)
+	await _cmove(player, "position", Vector3(0, 1.0, 18.5), 3.4)
+	await _cd([["Aris", "Otro día de cole terminado. Por fin en casa."]])
+	_ccam(Vector3(0.5, 2.0, 21.5), Vector3(0, 1.6, 12), 2.4)
+	await _cmove(player, "position", Vector3(0, 1.0, 10.5), 2.8)
+	await _cd([["Aris", "¡Ya estoy en casa!"], ["Mamá", "¡Hola, cariño! Estoy en la cocina. Ve poniéndote cómodo."]])
+	player.position = Vector3(0, 1.0, 10.5)
+	player.rotation = Vector3.ZERO
+	door.visible = true
+	(door.get_node("Body/Col") as CollisionShape3D).disabled = false
+	spawn_point = Vector3(0, 1.0, 10.5)
+	yaw = 0.0
+	_cine_end()
+	_show_hint("Explora la casa. Mamá está en la cocina y papá en el salón", 8.0)
+
+
+func _set_night() -> void:
+	var env: Environment = house_info["env"]
+	var sky: ProceduralSkyMaterial = house_info["sky"]
+	var sun: DirectionalLight3D = house_info["sun"]
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(sky, "sky_top_color", Color(0.02, 0.03, 0.09), 1.5)
+	tw.tween_property(sky, "sky_horizon_color", Color(0.08, 0.1, 0.22), 1.5)
+	tw.tween_property(sky, "ground_horizon_color", Color(0.06, 0.07, 0.12), 1.5)
+	tw.tween_property(sky, "ground_bottom_color", Color(0.02, 0.03, 0.05), 1.5)
+	tw.tween_property(env, "ambient_light_color", Color(0.4, 0.42, 0.6), 1.5)
+	tw.tween_property(env, "ambient_light_energy", 0.4, 1.5)
+	tw.tween_property(sun, "light_energy", 0.05, 1.5)
+
+
+func _play_dinner() -> void:
+	State.flags["dinner"] = true
+	_cine_start()
+	var papa: Node3D = house_info["papa"]
+	var mama: Node3D = house_info["mama"]
+	await _cfade(1.0, 0.5)
+	papa.position = Vector3(12.0, -0.45, 8.5)
+	papa.rotation.y = -PI * 0.5
+	mama.position = Vector3(6.0, -0.45, 8.5)
+	mama.rotation.y = PI * 0.5
+	player.position = Vector3(9.0, 0.45, 10.4)
+	player.rotation = Vector3.ZERO
+	_cset(Vector3(9.0, 2.7, 3.4), Vector3(9.0, 1.2, 8.6))
+	await _cfade(0.0, 0.6)
+	_ccam(Vector3(7.6, 2.3, 4.4), Vector3(9.0, 1.3, 8.8), 6.0)
+	await _cd([
+		["", "En la mesa humea una cena que huele de maravilla."],
+		["Mamá", "Siéntate, Aris. ¿Qué tal el colegio hoy?"],
+		["Aris", "Bien, normal. Hoy nos han devuelto el examen de historia."],
+		["Papá", "¿Y bien? No nos dejes con la intriga."],
+		["Aris", "Un ocho y medio. Tocaba Grecia antigua... casi me lo sabía de memoria."],
+		["Mamá", "¡Ocho y medio! Qué orgullo. Lo de los dioses y los héroes siempre se te ha dado bien."],
+	])
+	_ccam(Vector3(10.6, 2.2, 4.8), Vector3(8.6, 1.3, 9.0), 6.0)
+	await _cd([
+		["Papá", "Eso es de familia. ¿Y los amigos, qué tal?"],
+		["Aris", "Dani quiere que vaya el sábado a su casa a jugar."],
+		["Mamá", "Claro, pero antes ordenas tu cuarto. Parece que ha pasado un huracán."],
+		["Papá", "Más bien un tornado con calcetines."],
+		["Aris", "¡Eh! Que está ordenado a mi manera."],
+		["", "Entre risas y platos vacíos, la cena llega a su fin."],
+		["Mamá", "Venga, hijo, a la cama, que ya es tarde. Yo recojo."],
+		["Papá", "Descansa, campeón."],
+		["Aris", "Buenas noches, papá. Buenas noches, mamá."],
+	])
+	await _cfade(1.0, 0.6)
+	papa.position = Vector3(-8.4, -0.4, 5.2)
+	papa.rotation.y = -PI * 0.5
+	mama.position = Vector3(6.5, 0, -12.2)
+	mama.rotation.y = PI
+	player.position = Vector3(7.2, 1.0, 5.4)
+	player.rotation = Vector3.ZERO
+	yaw = 0.0
+	_set_night()
+	await _cw(0.4)
+	await _cfade(0.0, 0.6)
+	_cine_end()
+	_show_hint("Sube a tu habitación por las escaleras del vestíbulo", 8.0)
+
+
+func _play_book() -> void:
+	State.flags["book_seen"] = true
+	_cine_start()
+	var book: Node3D = house_info["book"]
+	var floor_y: float = H1_FLOOR + 0.9
+	player.rotation = Vector3.ZERO
+	player.position = Vector3(5.0, floor_y, 8.0)
+	_face(player, 1.0, -0.2)
+	_cset(Vector3(13.2, 7.6, 12.8), Vector3(6.5, 5.6, 6.5))
+	await _cd([["", "La casa está en silencio. Tu habitación, como siempre."]])
+	_ccam(Vector3(9.0, 6.9, 8.5), Vector3(8.8, 5.5, 1.0), 3.5)
+	_face(player, 3.0, -5.4)
+	await _cmove(player, "position", Vector3(8.4, floor_y, 2.6), 3.2)
+	_face(player, 0.0, -1.0)
+	await _cd([
+		["", "En la estantería están los libros de siempre... pero hay uno que no encaja."],
+		["Aris", "Este libro... no recuerdo haberlo visto antes aquí."],
+		["Aris", "¿Mamá?"],
+		["", "Nadie responde. Abajo solo se oye el murmullo lejano de la tele."],
+		["Aris", "Nada, da igual."],
+	])
+	book.visible = false
+	held_book.visible = true
+	_ccam(Vector3(9.4, 6.4, 4.6), Vector3(8.8, 5.9, 2.0), 1.6)
+	await _cd([
+		["", "En la cubierta, en letras doradas, pone: «Mitología griega»."],
+		["Aris", "Mitología griega... qué casualidad."],
+	])
+	_ccam(Vector3(7.6, 7.4, 9.0), Vector3(11.5, 5.4, 11.8), 3.0)
+	_face(player, 3.0, 8.6)
+	await _cmove(player, "position", Vector3(10.4, floor_y, 11.8), 3.0)
+	_face(player, 1.0, 0.0)
+	await _cmove(player, "position", Vector3(11.3, floor_y - 0.3, 11.8), 0.6)
+	await _cw(0.3)
+	var lie := create_tween().set_parallel(true)
+	lie.tween_property(player, "rotation:z", -PI * 0.5, 0.9)
+	lie.tween_property(player, "position", Vector3(12.0, H1_FLOOR + 1.1, 11.8), 0.9)
+	while lie.is_running() and not cine_skip:
+		await get_tree().process_frame
+	if cine_skip:
+		lie.kill()
+	await _cd([
+		["Aris", "Solo un capítulo..."],
+		["", "Abres el libro. Las letras empiezan a moverse solas sobre el papel."],
 		["", "De pronto, el libro brilla."],
 	])
-	var sparks: Array = []
-	for i in 30:
-		var s := MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = 0.07
-		sm.height = 0.14
-		s.mesh = sm
-		s.material_override = Zones.mat(Color(1.0, 0.85, 0.4), 3.0)
-		var ang: float = randf() * TAU
-		var r: float = randf_range(1.5, 3.2)
-		s.position = Vector3(cos(ang) * r, randf_range(-1.0, 2.0), sin(ang) * r)
-		fx.add_child(s)
-		sparks.append(s)
-	var fxt := create_tween().set_parallel(true)
-	fxt.tween_property(glow, "light_energy", 9.0, 2.6)
-	for s in sparks:
-		fxt.tween_property(s, "position", Vector3.ZERO, randf_range(1.6, 2.6)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	fxt.tween_property(player, "scale", Vector3(0.05, 0.05, 0.05), 2.4).set_delay(0.4)
-	await fxt.finished
-	fade.color = Color(1, 1, 1, 0)
-	var white := create_tween()
-	white.tween_property(fade, "color:a", 1.0, 1.0)
-	await white.finished
+	if not cine_skip:
+		held_book.position = Vector3(0.6, 1.2, 0)
+		var glow := OmniLight3D.new()
+		glow.light_color = Color(1.0, 0.85, 0.4)
+		glow.light_energy = 0.5
+		glow.omni_range = 9.0
+		glow.position = Vector3(12.0, H1_FLOOR + 2.4, 11.8)
+		zone.add_child(glow)
+		var sparks: Array = []
+		for i in 30:
+			var s := MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = 0.07
+			sm.height = 0.14
+			s.mesh = sm
+			s.material_override = Zones.mat(Color(1.0, 0.85, 0.4), 3.0)
+			var ang: float = randf() * TAU
+			var r: float = randf_range(1.5, 3.2)
+			s.position = Vector3(12.0 + cos(ang) * r, H1_FLOOR + randf_range(0.4, 3.0), 11.8 + sin(ang) * r)
+			zone.add_child(s)
+			sparks.append(s)
+		var fxt := create_tween().set_parallel(true)
+		fxt.tween_property(glow, "light_energy", 9.0, 2.6)
+		for s in sparks:
+			fxt.tween_property(s, "position", Vector3(12.0, H1_FLOOR + 2.0, 11.8), randf_range(1.6, 2.6)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		fxt.tween_property(player, "scale", Vector3(0.05, 0.05, 0.05), 2.4).set_delay(0.4)
+		while fxt.is_running() and not cine_skip:
+			await get_tree().process_frame
+		if cine_skip:
+			fxt.kill()
+		fade.color = Color(1, 1, 1, 0)
+		await _cfade(1.0, 1.0)
 	fade.color = Color(0, 0, 0, 1)
+	_cine_end()
 	_load_zone("beach")
 	_play_intro()
 
@@ -735,6 +983,12 @@ func _input(event: InputEvent) -> void:
 		if event is InputEventScreenTouch and event.pressed:
 			_menu_touch(event.position)
 		return
+	if cine_active and event is InputEventScreenTouch and event.pressed:
+		if _skip_rect().has_point(event.position):
+			cine_skip = true
+			if dialog != null:
+				dialog.abort()
+			return
 	if in_battle:
 		if event is InputEventScreenTouch and event.pressed and battle != null:
 			battle.handle_touch(event.position)
@@ -856,7 +1110,7 @@ func _process(delta: float) -> void:
 		if hint_timer <= 0.0:
 			hint_label.visible = false
 	var hero = State.party[0]
-	info_label.visible = not in_battle
+	info_label.visible = not in_battle and not cine_active
 	info_label.text = "%s Nv%d  PV %d/%d  |  FPS: %d" % [hero.fname, hero.level, hero.hp, hero.max_hp, Engine.get_frames_per_second()]
 	if in_battle or traveling:
 		return
@@ -873,6 +1127,8 @@ func _process(delta: float) -> void:
 	if found != near_portal:
 		near_portal = found
 		ui.queue_redraw()
+	if current_zone == "house" and not cine_active:
+		_check_house_triggers()
 	if grace <= 0.0:
 		for n in get_tree().get_nodes_in_group("enemies"):
 			var en := n as Node3D
