@@ -4,6 +4,7 @@ signal chosen
 signal finished(result: String)
 
 const STAGE_OFFSET := Vector3(500, 0, 0)
+const Character = preload("res://character.gd")
 const CAM_POS := Vector3(0, 4.2, 10.5)
 const CAM_LOOK := Vector3(0, 0.3, -2.5)
 
@@ -129,6 +130,17 @@ func _cone(r: float, h: float) -> CylinderMesh:
 	return cm
 
 
+func _collect_mats(n: Node, f) -> void:
+	if n is MeshInstance3D:
+		var mi := n as MeshInstance3D
+		if mi.material_override is StandardMaterial3D:
+			var m: StandardMaterial3D = (mi.material_override as StandardMaterial3D).duplicate() as StandardMaterial3D
+			mi.material_override = m
+			body_mats[f].append(m)
+	for c in n.get_children():
+		_collect_mats(c, f)
+
+
 func _make_model(f) -> Node3D:
 	body_mats[f] = []
 	var root := Node3D.new()
@@ -157,6 +169,11 @@ func _make_model(f) -> Node3D:
 		root.rotation.y = PI
 		if str(f.fname).find("Aelo") >= 0:
 			root.scale = Vector3(1.6, 1.6, 1.6)
+	elif str(f.fname) == "Aris":
+		var hm: Node3D = Character.build(Color(0.15, 0.3, 0.7), Color(0.22, 0.25, 0.4), Color(0.95, 0.76, 0.6), Color(0.35, 0.2, 0.1), "messy", true)
+		hm.scale = Vector3(1.25, 1.25, 1.25)
+		body.add_child(hm)
+		_collect_mats(hm, f)
 	else:
 		_mesh_node(body, _capsule(0.38, 1.6), Vector3(0, 0.8, 0), col, f, true)
 		_mesh_node(body, _sphere(0.3), Vector3(0, 1.95, 0), Color(0.86, 0.66, 0.48), f, true)

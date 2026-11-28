@@ -1,6 +1,6 @@
 extends Node
 
-const FILES := ["res://main.gd", "res://zones.gd", "res://state.gd", "res://fighter.gd", "res://battle.gd", "res://dialog.gd", "res://companion.gd", "res://textures.gd", "res://house.gd", "res://character.gd"]
+const FILES := ["res://main.gd", "res://zones.gd", "res://state.gd", "res://fighter.gd", "res://battle.gd", "res://dialog.gd", "res://companion.gd", "res://textures.gd", "res://house.gd", "res://character.gd", "res://nature.gd"]
 
 
 func _ready() -> void:
