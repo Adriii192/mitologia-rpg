@@ -4,6 +4,7 @@ const Companion = preload("res://companion.gd")
 const Tex = preload("res://textures.gd")
 const State = preload("res://state.gd")
 const Nature = preload("res://nature.gd")
+const Forest = preload("res://forest.gd")
 
 
 static func mat(color: Color, emission: float = 0.0) -> StandardMaterial3D:
@@ -639,14 +640,19 @@ static func build_house(root: Node3D) -> Dictionary:
 
 static func cap1_enemies() -> Array:
 	return [
-		["c1", Vector3(-8, 0, 28), ["satiro", "satiro"]],
-		["c2", Vector3(12, 0, 14), ["satiro", "arpia"]],
-		["c3", Vector3(-15, 0, -3), ["arpia", "arpia"]],
-		["c4", Vector3(19, 0, -7), ["satiro", "satiro", "arpia"]],
-		["c5", Vector3(-24, 0, -22), ["arpia"]],
-		["c6", Vector3(0, 0, -22), ["satiro", "arpia"]],
+		["c1", Vector3(6, 0, 29), ["satiro"]],
+		["c2", Vector3(14, 0, 17), ["arpia", "satiro"]],
+		["c3", Vector3(-19, 0, -1), ["satiro", "satiro"]],
+		["c4", Vector3(27, 0, 27), ["arpia", "arpia"]],
+		["c5", Vector3(-6, 0, 1), ["satiro", "arpia"]],
+		["c6", Vector3(-12, 0, -16), ["arpia", "satiro"]],
+		["c7", Vector3(-2, 0, -26), ["satiro", "arpia"]],
 		["boss", Vector3(0, 0, -41), ["aelo"]],
 	]
+
+
+static func ground_y(x: float, z: float) -> float:
+	return Forest.gy(x, z)
 
 
 static func brazier(root: Node3D, pos: Vector3, id: String) -> void:
@@ -728,17 +734,40 @@ static func refresh_cap1(root: Node3D) -> void:
 		tw.tween_callback(g.queue_free)
 
 
+static func _step_rocks(root: Node3D, start: Vector3, goal: Vector3, top_y: float) -> void:
+	var base: float = Forest.gy(start.x, start.z)
+	var n: int = int(ceil((top_y - base) / 1.1))
+	for i in range(1, n + 1):
+		var t: float = float(i) / float(n + 1)
+		var p: Vector3 = start.lerp(goal, t)
+		var top: float = base + (top_y - base) * t
+		tbox(root, Vector3(p.x, top - 1.5, p.z), Vector3(3.0, 3.0, 3.0), "rock", Color(1, 1, 1), 2.0)
+
+
 static func build_cap1(root: Node3D) -> Dictionary:
-	environment(root, Color(0.55, 0.78, 0.95), Color(0.72, 0.76, 0.85), 0.6, 0.95, Color(1.0, 0.95, 0.85))
-	tbox(root, Vector3(0, -0.5, 0), Vector3(100, 1, 100), "grass", Color(1, 1, 1), 3.5)
-	# Camino de tierra
-	tdeco(root, Vector3(0, 0.03, 12), Vector3(5, 0.04, 70), "dirt", Color(1, 1, 1), 2.0)
-	tdeco(root, Vector3(0, 0.03, -22), Vector3(5, 0.04, 22), "dirt", Color(1, 1, 1), 2.0)
+	var env: Environment = environment(root, Color(0.55, 0.78, 0.95), Color(0.7, 0.78, 0.8), 0.7, 0.85, Color(1.0, 0.95, 0.82))
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color(0.28, 0.52, 0.85)
+	sky_mat.sky_horizon_color = Color(0.78, 0.9, 0.9)
+	sky_mat.ground_horizon_color = Color(0.6, 0.78, 0.7)
+	sky_mat.ground_bottom_color = Color(0.25, 0.4, 0.3)
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	env.sky = sky
+	env.background_mode = Environment.BG_SKY
+	env.fog_enabled = true
+	env.fog_light_color = Color(0.66, 0.82, 0.78)
+	env.fog_density = 0.011
+	env.fog_sky_affect = 0.2
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	Forest.build_grid()
+	Forest.terrain(root)
 	# Limites invisibles
-	wall(root, Vector3(0, 2, 48.5), Vector3(100, 4, 1))
-	wall(root, Vector3(-48.5, 2, 0), Vector3(1, 4, 100))
-	wall(root, Vector3(48.5, 2, 0), Vector3(1, 4, 100))
-	wall(root, Vector3(0, 2, -49.5), Vector3(100, 4, 1))
+	wall(root, Vector3(0, 6, 49.5), Vector3(100, 12, 1))
+	wall(root, Vector3(-49.5, 6, 0), Vector3(1, 12, 100))
+	wall(root, Vector3(49.5, 6, 0), Vector3(1, 12, 100))
+	wall(root, Vector3(0, 6, -49.5), Vector3(100, 12, 1))
 	# Acantilado de la cueva (con puerta central)
 	var rockc := Color(0.5, 0.47, 0.44)
 	tbox(root, Vector3(-27.5, 5, -34), Vector3(43, 10, 3), "rock", Color(1, 1, 1), 3.0)
@@ -782,44 +811,88 @@ static func build_cap1(root: Node3D) -> Dictionary:
 		gate.add_child(s)
 	root.add_child(gate)
 	tag(root, Vector3(0, 8.5, -31), "Cueva del monte")
-	# Fuegos antiguos
-	brazier(root, Vector3(-22, 0, -6), "b1")
-	brazier(root, Vector3(24, 0, -8), "b2")
-	# Ruta de rocas al fuego alto (oeste)
-	var rock := Color(0.55, 0.5, 0.45)
-	_place(root, [Vector3(-24, 1.0, -24), Vector3(-28, 2.0, -26), Vector3(-32, 3.0, -25), Vector3(-35, 4.0, -28)], rock)
-	tbox(root, Vector3(-39, 3.6, -30), Vector3(6, 0.8, 6), "rock", Color(1, 1, 1), 2.0)
-	brazier(root, Vector3(-40, 4.0, -31), "b3")
-	# Ruta de rocas al cofre (este)
-	_place(root, [Vector3(22, 1.0, -26), Vector3(26, 2.0, -28), Vector3(30, 3.0, -27)], Color(0.6, 0.55, 0.4))
-	tbox(root, Vector3(35, 2.6, -27), Vector3(5, 0.8, 5), "rock", Color(1, 1, 1), 2.0)
-	chest(root, Vector3(36, 3.0, -27), "chest1")
+	# Fuegos antiguos: oeste (sendero), este (sendero) y alto (colina con rocas)
+	var b1y: float = Forest.gy(-27, -4)
+	brazier(root, Vector3(-27, b1y, -4), "b1")
+	var b2y: float = Forest.gy(34, 25)
+	brazier(root, Vector3(34, b2y, 25), "b2")
+	_step_rocks(root, Vector3(-19, 0, -13), Vector3(-28, 0, -18), 6.5)
+	brazier(root, Vector3(-31, 6.5, -19), "b3")
+	_step_rocks(root, Vector3(22, 0, -7), Vector3(28.5, 0, -12), 5.5)
+	chest(root, Vector3(31, 5.5, -14), "chest1")
 	# Curete
 	var cur: Node3D = Companion.person(Color(0.72, 0.55, 0.2), "Curete")
-	cur.position = Vector3(5, 0, 36)
+	cur.name = "Curete"
+	cur.position = Vector3(5.5, Forest.gy(5.5, 36), 36)
 	cur.rotation.y = deg_to_rad(40)
 	root.add_child(cur)
-	interact(root, Vector3(5, 0, 36), "talk", "curete", "HABLAR", "")
-	# Bosque
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 11
-	var keep: Array = [Vector3(-22, 0, -6), Vector3(24, 0, -8), Vector3(-38, 0, -29), Vector3(34, 0, -27), Vector3(-8, 0, 28), Vector3(12, 0, 14), Vector3(-15, 0, -3), Vector3(19, 0, -7), Vector3(-24, 0, -22), Vector3(0, 0, -22), Vector3(5, 0, 36), Vector3(0, 0, 44)]
-	var placed: int = 0
-	var tries: int = 0
-	while placed < 46 and tries < 600:
-		tries += 1
-		var p := Vector3(rng.randf_range(-44.0, 44.0), 0, rng.randf_range(-30.0, 46.0))
-		if absf(p.x) < 5.0:
+	interact(root, cur.position, "talk", "curete", "HABLAR", "")
+	# Bosque frondoso sobre el terreno
+	var keep: Array = [Vector3(-27, 0, -4), Vector3(34, 0, 25), Vector3(-31, 0, -19), Vector3(31, 0, -14), Vector3(5.5, 0, 36)]
+	var zz: float = -46.0
+	while zz < 47.0:
+		var xx: float = -46.0
+		while xx < 47.0:
+			var px: float = xx + rng.randf_range(-1.4, 1.4)
+			var pz: float = zz + rng.randf_range(-1.4, 1.4)
+			xx += 3.6
+			var dist: float = Forest.gd(px, pz)
+			if dist < 3.4 or rng.randf() > 0.68:
+				continue
+			if pz < -30.0 and absf(px) < 26.0:
+				continue
+			var near_keep: bool = false
+			for k in keep:
+				var kv: Vector3 = k
+				if Vector2(px - kv.x, pz - kv.z).length() < 4.0:
+					near_keep = true
+			if near_keep or Forest.slope(px, pz) > 1.1:
+				continue
+			Nature.lush_tree(root, Vector3(px, Forest.gy(px, pz) - 0.15, pz), rng, dist < 14.0)
+		zz += 3.6
+	# Sotobosque: helechos, arbustos, hierba, flores y rocas
+	for i in 330:
+		var fx: float = rng.randf_range(-46.0, 46.0)
+		var fz: float = rng.randf_range(-30.0, 48.0)
+		var fd: float = Forest.gd(fx, fz)
+		if fd < 2.6:
 			continue
-		var ok: bool = true
-		for k in keep:
-			var kv: Vector3 = k
-			if Vector2(p.x - kv.x, p.z - kv.z).length() < 8.5:
-				ok = false
-				break
-		if ok:
-			tree(root, p)
-			placed += 1
+		var fy: float = Forest.gy(fx, fz)
+		var r: float = rng.randf()
+		if r < 0.45:
+			Nature.fern(Vector3(fx, fy, fz), rng, rng.randf_range(0.9, 1.6))
+		elif r < 0.7:
+			Nature.bush(Vector3(fx, fy, fz), rng, rng.randf_range(0.8, 1.5))
+		elif r < 0.9:
+			Nature.tuft(Vector3(fx, fy, fz), rng, rng.randf_range(0.9, 1.7))
+		else:
+			Nature.flowers(Vector3(fx, fy, fz), rng)
+	for i in 120:
+		var tx: float = rng.randf_range(-40.0, 40.0)
+		var tz: float = rng.randf_range(-28.0, 46.0)
+		var side: float = -1.0 if rng.randf() < 0.5 else 1.0
+		var pp: Vector3 = Forest.main_pts[rng.randi() % Forest.main_pts.size()]
+		tx = pp.x + side * rng.randf_range(2.9, 4.4)
+		tz = pp.z + rng.randf_range(-1.0, 1.0)
+		if rng.randf() < 0.5:
+			Nature.tuft(Vector3(tx, Forest.gy(tx, tz), tz), rng, 1.0)
+		else:
+			Nature.flowers(Vector3(tx, Forest.gy(tx, tz), tz), rng)
+	for i in 55:
+		var rx: float = rng.randf_range(-44.0, 44.0)
+		var rz: float = rng.randf_range(-28.0, 46.0)
+		if Forest.gd(rx, rz) < 3.2:
+			continue
+		var rs: float = rng.randf_range(0.7, 2.2)
+		Nature.rock(root, Vector3(rx, Forest.gy(rx, rz) - 0.2, rz), Vector3(rs, rs * 0.8, rs), rng, rs > 1.4)
+	# Montanas lejanas que rodean el bosque
+	Nature.mountain(root, Vector3(-95, -4, 20), 40.0, 44.0, rng, 0.35, false)
+	Nature.mountain(root, Vector3(100, -4, -10), 40.0, 48.0, rng, 0.35, false)
+	Nature.mountain(root, Vector3(10, -4, 105), 44.0, 46.0, rng, 0.35, false)
+	Nature.mountain(root, Vector3(-75, -4, -85), 40.0, 44.0, rng, 0.35, false)
+	Nature.mountain(root, Vector3(75, -4, -90), 40.0, 44.0, rng, 0.35, false)
+	Nature.mountain(root, Vector3(0, -4, -110), 50.0, 56.0, rng, 0.35, false)
 	tag(root, Vector3(0, 6.0, 44), "Bosque de Creta")
+	Nature.flush(root)
 	refresh_cap1(root)
 	return {"spawn": Vector3(0, 1.1, 44)}

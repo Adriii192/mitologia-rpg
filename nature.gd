@@ -222,7 +222,7 @@ static func lush_tree(root: Node3D, pos: Vector3, rng: RandomNumberGenerator, co
 			collider(root, pos, 0.45, 2.5)
 		return
 	var olive: bool = kind < 0.34
-	var ht: float = h * 0.58
+	var ht: float = h * 0.7 + 1.2
 	var r: float = 0.4 * scale_mul
 	add("cyl", pos + Vector3(0, ht * 0.5, 0), Vector3(r, ht, r), Vector3(0, rng.randf() * 360.0, rng.randf_range(-6, 6) if olive else 0.0), Color(0.85, 0.8, 0.75))
 	var n: int = rng.randi_range(4, 6)

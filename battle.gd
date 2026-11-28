@@ -87,12 +87,12 @@ func _stage_column(pos: Vector3, height: float) -> void:
 
 func _party_home(i: int) -> Vector3:
 	var n: int = party.size()
-	return Vector3((i - (n - 1) * 0.5) * 2.6, 0.0, 2.5)
+	return Vector3((i - (n - 1) * 0.5) * 2.6 - 1.6, 0.0, 2.5)
 
 
 func _enemy_home(i: int) -> Vector3:
 	var n: int = enemies.size()
-	return Vector3((i - (n - 1) * 0.5) * 3.2, 0.0, -3.8)
+	return Vector3((i - (n - 1) * 0.5) * 3.2 + 0.6, 0.0, -3.8)
 
 
 func _mesh_node(parent: Node3D, mesh: Mesh, pos: Vector3, color: Color, f, track: bool) -> MeshInstance3D:

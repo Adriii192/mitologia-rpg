@@ -6,6 +6,7 @@ const Battle = preload("res://battle.gd")
 const Dialog = preload("res://dialog.gd")
 const Companion = preload("res://companion.gd")
 const House = preload("res://house.gd")
+const Monster = preload("res://monster.gd")
 const Character = preload("res://character.gd")
 
 const SPEED := 6.0
@@ -352,37 +353,131 @@ func _spawn_enemies(defs: Array) -> void:
 			continue
 		var kinds: Array = d[2]
 		var n := Node3D.new()
-		n.position = d[1]
+		var hp: Vector3 = d[1]
+		n.position = Vector3(hp.x, Zones.ground_y(hp.x, hp.z), hp.z)
 		n.add_to_group("enemies")
 		n.set_meta("id", id)
 		n.set_meta("kinds", kinds)
-		zone.add_child(n)
+		n.set_meta("home", n.position)
+		n.set_meta("state", "idle")
+		n.set_meta("wt", randf_range(0.5, 3.0))
+		n.set_meta("wtarget", n.position)
+		n.set_meta("static", kinds.has("aelo"))
+		var body := Node3D.new()
+		body.name = "Body"
+		n.add_child(body)
+		var wings: Array = []
+		var top: float = 0.0
 		for j in kinds.size():
 			var kind: String = kinds[j]
-			var ox: float = (j - (kinds.size() - 1) / 2.0) * 1.5
+			var ox: float = (j - (kinds.size() - 1) / 2.0) * 1.7
 			var info: Dictionary = State.enemy_info(kind)
 			var sc: float = float(info["scale"])
-			var mi := MeshInstance3D.new()
-			var cap := CapsuleMesh.new()
-			cap.radius = 0.45
-			cap.height = 1.8
-			mi.mesh = cap
 			var col: Color = info["color"]
-			var label: String = str(info["name"])
-			mi.material_override = Zones.mat(col)
-			mi.scale = Vector3(sc, sc, sc)
-			mi.position = Vector3(ox, 0.9 * sc, 0)
-			n.add_child(mi)
+			var mdl: Node3D = Monster.build("satiro" if kind == "satiro" else "arpia", col)
+			mdl.scale = Vector3(sc, sc, sc)
+			mdl.position = Vector3(ox, 0, 0)
+			body.add_child(mdl)
+			var wl: Node = mdl.find_child("WingL", true, false)
+			var wr: Node = mdl.find_child("WingR", true, false)
+			if wl != null:
+				wings.append(wl)
+				wings.append(wr)
 			var tag := Label3D.new()
-			tag.text = label
+			tag.text = str(info["name"])
 			tag.font_size = 44
 			tag.pixel_size = 0.01
 			tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-			tag.position = Vector3(ox, 2.2 * sc + 0.1, 0)
-			n.add_child(tag)
-		var tw := n.create_tween().set_loops()
-		tw.tween_property(n, "position:y", 0.3, 0.7).set_trans(Tween.TRANS_SINE)
-		tw.tween_property(n, "position:y", 0.0, 0.7).set_trans(Tween.TRANS_SINE)
+			var th: float = (3.6 if kind != "satiro" else 3.0) * sc
+			tag.position = Vector3(ox, th, 0)
+			body.add_child(tag)
+			top = maxf(top, th)
+		var alert := Label3D.new()
+		alert.name = "Alert"
+		alert.text = "!"
+		alert.font_size = 120
+		alert.pixel_size = 0.01
+		alert.modulate = Color(1.0, 0.85, 0.2)
+		alert.outline_modulate = Color(0.5, 0.1, 0.0)
+		alert.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		alert.position = Vector3(0, top + 0.9, 0)
+		alert.visible = false
+		n.add_child(alert)
+		n.set_meta("wings", wings)
+		zone.add_child(n)
+		if not kinds.has("aelo"):
+			var tw := body.create_tween().set_loops()
+			tw.tween_property(body, "position:y", 0.22, 0.45).set_trans(Tween.TRANS_SINE)
+			tw.tween_property(body, "position:y", 0.0, 0.45).set_trans(Tween.TRANS_SINE)
+
+
+func _update_enemies(delta: float) -> void:
+	if current_zone != "cap1":
+		return
+	var pp: Vector3 = player.global_position
+	var tnow: float = Time.get_ticks_msec() / 1000.0
+	for n in get_tree().get_nodes_in_group("enemies"):
+		var en := n as Node3D
+		if en == null or en.is_queued_for_deletion():
+			continue
+		for w in en.get_meta("wings", []):
+			var wn := w as Node3D
+			if wn != null:
+				var sgn: float = -1.0 if wn.name == "WingL" else 1.0
+				wn.rotation.z = sgn * sin(tnow * 9.0) * 0.55
+		if bool(en.get_meta("static", false)):
+			continue
+		var home: Vector3 = en.get_meta("home")
+		var st: String = str(en.get_meta("state", "idle"))
+		var pos: Vector3 = en.position
+		var dpv := Vector2(pp.x - pos.x, pp.z - pos.z)
+		var dp: float = dpv.length()
+		var dhv := Vector2(home.x - pos.x, home.z - pos.z)
+		var dh: float = dhv.length()
+		var dir := Vector2.ZERO
+		var spd: float = 0.0
+		if st == "idle":
+			if dp < 10.0 and absf(pp.y - pos.y) < 5.0 and grace <= 0.0:
+				st = "chase"
+			else:
+				var wt: float = float(en.get_meta("wt", 1.0)) - delta
+				var wtar: Vector3 = en.get_meta("wtarget")
+				if wt <= 0.0:
+					var a: float = randf() * TAU
+					var rr: float = randf_range(1.0, 3.5)
+					wtar = Vector3(home.x + cos(a) * rr, 0, home.z + sin(a) * rr)
+					en.set_meta("wtarget", wtar)
+					wt = randf_range(2.0, 5.0)
+				en.set_meta("wt", wt)
+				var dw := Vector2(wtar.x - pos.x, wtar.z - pos.z)
+				if dw.length() > 0.4:
+					dir = dw.normalized()
+					spd = 1.3
+		elif st == "chase":
+			if dp > 19.0 or dh > 28.0:
+				st = "return"
+			else:
+				dir = dpv.normalized()
+				spd = 4.3
+		elif st == "return":
+			dir = dhv.normalized()
+			spd = 5.0
+			if dh < 0.7:
+				st = "idle"
+			elif dp < 6.0 and dh < 14.0 and grace <= 0.0:
+				st = "chase"
+		if str(en.get_meta("state", "")) != st:
+			en.set_meta("state", st)
+			(en.get_node("Alert") as Node3D).visible = (st == "chase")
+		pos.x += dir.x * spd * delta
+		pos.z += dir.y * spd * delta
+		pos.x = clampf(pos.x, -47.0, 47.0)
+		pos.z = clampf(pos.z, -29.0, 47.0)
+		pos.y = Zones.ground_y(pos.x, pos.z)
+		en.position = pos
+		if dir.length() > 0.01:
+			var body: Node3D = en.get_node("Body")
+			body.rotation.y = lerp_angle(body.rotation.y, atan2(-dir.x, -dir.y), delta * 8.0)
 
 
 # ---------- Diálogos e introducción ----------
@@ -515,13 +610,8 @@ func _talk(id: String) -> void:
 			lines = [["Mamá", "¡Hola, cariño! La cena casi está. Cuando huelas que está lista, pasa al comedor."], ["Aris", "Vale, mamá."]]
 	elif id == "curete":
 		lines = [
-			["Curete", "¡Chist! Baja la voz, forastero. En este bosque hay que hablar bajito."],
-			["Aris", "¿Por qué? ¿Quién nos va a oír?"],
-			["Curete", "Las arpías. Vigilan la cueva del monte y no les gustan los ruidos. Ni los visitantes."],
-			["Curete", "La puerta de piedra solo se abre con los tres fuegos antiguos. Están en los claros del bosque, uno al oeste, otro al este... y otro, muy alto."],
-			["Aris", "Tres fuegos. Vale. ¿Y qué hay dentro de esa cueva?"],
-			["Curete", "Algo que nadie debe oír llorar. Eso es todo lo que puedo decirte."],
-			["Amaltea", "Qué conversación más animada. Yo no pregunto nada, que me pongo nerviosa."],
+			["Curete", "Tres fuegos antiguos: uno en el claro del oeste, otro en el del este... y otro muy, muy alto."],
+			["Curete", "Y habla bajito, que las arpías tienen buen oído."],
 		]
 		State.flags["curete"] = true
 	if lines.is_empty():
@@ -533,6 +623,36 @@ func _talk(id: String) -> void:
 
 
 # ---------- Cinematicas ----------
+
+func _play_curete() -> void:
+	State.flags["curete_cine"] = true
+	var cur: Node3D = zone.get_node_or_null("Curete")
+	if cur == null:
+		return
+	var cp: Vector3 = cur.position
+	_cine_start()
+	var gy0: float = Zones.ground_y(0, 42)
+	_cset(Vector3(-6.0, gy0 + 3.4, 49.0), Vector3(4.0, gy0 + 1.2, 34.0))
+	await _cd([["", "El bosque de Creta huele a resina, a tomillo y a tierra mojada. Entre los helechos, algo se mueve."]])
+	await _ccam(Vector3(10.5, cp.y + 1.8, 40.5), Vector3(cp.x, cp.y + 1.5, cp.z), 2.8)
+	if not cine_skip:
+		await _cw(0.6)
+	_face(cur, player.global_position.x - cp.x, player.global_position.z - cp.z)
+	await _cd([
+		["Curete", "¡Chist! Baja la voz, forastero."],
+		["Aris", "¿Por qué? ¿Quién nos va a oír?"],
+		["Curete", "Las arpías. Vigilan este bosque y no soportan ni el ruido ni las visitas."],
+		["Amaltea", "Mira qué amable es el vecindario."],
+		["Curete", "Si te ven, te persiguen. Corre o planta cara, tú sabrás. Pero no te dejes arrinconar."],
+		["Curete", "Al fondo, en el monte, hay una cueva sellada con una puerta de piedra. Solo se abre con tres fuegos antiguos: uno en el claro del oeste, otro en el del este... y otro muy, muy alto."],
+		["Aris", "¿Y qué hay dentro?"],
+		["Curete", "Algo que nadie debe oír llorar."],
+	])
+	State.flags["curete"] = true
+	_cine_end()
+	_show_hint("Sigue el camino. Los senderos laterales llevan a los claros del bosque", 6.0)
+	_autosave()
+
 
 func _skip_rect() -> Rect2:
 	return Rect2(_view().x - 300.0, 24.0, 270.0, 90.0)
@@ -1139,6 +1259,10 @@ func _process(delta: float) -> void:
 		ui.queue_redraw()
 	if current_zone == "house" and not cine_active:
 		_check_house_triggers()
+	if current_zone == "cap1":
+		_update_enemies(delta)
+		if not State.flags.has("curete_cine") and player.global_position.z < 41.0 and not cine_active:
+			_play_curete()
 	if grace <= 0.0:
 		for n in get_tree().get_nodes_in_group("enemies"):
 			var en := n as Node3D
