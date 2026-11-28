@@ -88,6 +88,19 @@ static func person(col: Color, label: String) -> Node3D:
 		model = Character.build(col, Color(0.3, 0.25, 0.35), Color(0.95, 0.78, 0.65), Color(0.3, 0.17, 0.08), "long")
 	elif label == "Curete":
 		model = Character.build(col, Color(0.45, 0.32, 0.2), Color(0.85, 0.65, 0.5), Color(0.15, 0.1, 0.08), "short", false, Color(0.4, 0.28, 0.18))
+	elif label == "Nika":
+		model = Character.build(col, Color(0.45, 0.3, 0.2), Color(0.9, 0.7, 0.55), Color(0.25, 0.14, 0.08), "bun", false, Color(0.3, 0.2, 0.12))
+	elif label == "Anciano":
+		model = Character.build(col, Color(0.5, 0.42, 0.35), Color(0.85, 0.68, 0.55), Color(0.86, 0.86, 0.86), "short")
+	elif label == "Aldeana":
+		model = Character.build(col, Color(0.6, 0.5, 0.4), Color(0.93, 0.74, 0.6), Color(0.2, 0.12, 0.08), "long")
+	elif label == "Pastor":
+		model = Character.build(col, Color(0.4, 0.3, 0.2), Color(0.8, 0.62, 0.48), Color(0.3, 0.2, 0.1), "messy")
+	elif label == "Aldeano":
+		model = Character.build(col, Color(0.35, 0.3, 0.28), Color(0.88, 0.7, 0.55), Color(0.15, 0.1, 0.08), "short")
+	elif label == "Niño":
+		model = Character.build(col, Color(0.3, 0.4, 0.55), Color(0.93, 0.75, 0.6), Color(0.45, 0.3, 0.12), "messy")
+		model.scale = Vector3(0.72, 0.72, 0.72)
 	model.rotation.y = PI
 	root.add_child(model)
 	var tag := Label3D.new()

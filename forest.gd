@@ -15,6 +15,7 @@ const MAIN := [
 	Vector3(-9, 1.2, -21), Vector3(-1, 0.3, -28), Vector3(0, 0.0, -33),
 ]
 const BR_W := [Vector3(-8, 3.4, -2), Vector3(-15, 3.2, 0), Vector3(-22, 2.9, -3), Vector3(-27, 2.8, -4)]
+const BR_V := [Vector3(0, 0.3, 32), Vector3(-9, 0.3, 31), Vector3(-18, 0.5, 34), Vector3(-27, 0.7, 38), Vector3(-36, 0.8, 40), Vector3(-44, 0.8, 40)]
 const BR_E := [Vector3(10, 1.0, 25), Vector3(20, 0.95, 28), Vector3(28, 1.0, 27), Vector3(34, 1.0, 25)]
 # centro (con altura), radio plano, ancho de transicion
 const CLEAR := [
@@ -54,11 +55,11 @@ static func _hills(x: float, z: float) -> float:
 
 static func build_grid() -> void:
 	main_pts = _sample(MAIN, 1.5)
-	br_pts = [_sample(BR_W, 1.5), _sample(BR_E, 1.5)]
+	br_pts = [_sample(BR_W, 1.5), _sample(BR_E, 1.5), _sample(BR_V, 1.5)]
 	var xs: PackedFloat32Array = PackedFloat32Array()
 	var zs: PackedFloat32Array = PackedFloat32Array()
 	var ys: PackedFloat32Array = PackedFloat32Array()
-	var all: Array = [main_pts, br_pts[0], br_pts[1]]
+	var all: Array = [main_pts, br_pts[0], br_pts[1], br_pts[2]]
 	for arr in all:
 		for p in arr:
 			var v: Vector3 = p
@@ -193,7 +194,7 @@ static func terrain(root: Node3D) -> void:
 	body.add_child(cs)
 	root.add_child(body)
 	# Camino de tierra (cinta sobre el terreno)
-	var all: Array = [main_pts, br_pts[0], br_pts[1]]
+	var all: Array = [main_pts, br_pts[0], br_pts[1], br_pts[2]]
 	for arr in all:
 		_ribbon(root, arr, 4.8)
 

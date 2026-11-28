@@ -7,6 +7,7 @@ const Dialog = preload("res://dialog.gd")
 const Companion = preload("res://companion.gd")
 const House = preload("res://house.gd")
 const Monster = preload("res://monster.gd")
+const Village = preload("res://village.gd")
 const Character = preload("res://character.gd")
 
 const SPEED := 6.0
@@ -15,6 +16,7 @@ const JUMP_SPEED := 9.0
 const JOY_RADIUS := 110.0
 const BTN_RADIUS := 80.0
 
+var gate_busy: bool = false
 var player: CharacterBody3D
 var cam_pivot: Node3D
 var camera: Camera3D
@@ -319,6 +321,8 @@ func _load_zone(zone_name: String) -> void:
 	elif zone_name == "house":
 		info = House.build(zone)
 		house_info = info
+	elif zone_name == "village":
+		info = Village.build(zone)
 	else:
 		info = Zones.build_cap1(zone)
 		_spawn_enemies(Zones.cap1_enemies())
@@ -614,9 +618,39 @@ func _talk(id: String) -> void:
 			["Curete", "Y habla bajito, que las arpías tienen buen oído."],
 		]
 		State.flags["curete"] = true
+	elif id == "anciano":
+		if State.flags.has("sello"):
+			lines = [["Anciano", "Tenéis el sello. Volved a la puerta de la cueva... y volved enteros, que el pan se enfría."]]
+		else:
+			lines = [
+				["Anciano", "Un forastero... y una cabra que no deja de mirar mi pan. Bienvenidos a Melisia, muchacho."],
+				["Aris", "Gracias. Estoy un poco... perdido. Un hombre con armadura, en el bosque, me habló de una cueva y de tres fuegos."],
+				["Anciano", "Los fuegos. Los encendió mi abuelo y los apagaron las arpías. Y la cueva... de allí sale a veces un llanto que ni los truenos tapan."],
+				["Anciano", "Los Curetes llevan siglos golpeando sus escudos para cubrirlo. Nadie sabe por quién llora."],
+				["Aris", "¿Y por qué no entra nadie?"],
+				["Anciano", "Porque la puerta tiene cuatro huecos. Los fuegos son tres. El cuarto es un sello, y lo guardamos aquí desde antes de que yo tuviera barba."],
+				["Amaltea", "Esa marca... la he visto antes. Creo."],
+				["Anciano", "Qué cosa más rara. Mi abuela hablaba de una cabra que no envejecía."],
+				["Amaltea", "Qué cosas dice la gente. Yo soy una joven de aspecto saludable."],
+				["Anciano", "No entrego un sello a un desconocido, muchacho. Pero mi nieta Nika conoce el monte mejor que nadie. Si ella confía en ti..."],
+			]
+	elif id == "aldeana":
+		if State.flags.has("nika"):
+			lines = [["Aldeana", "Cuidad de Nika. Es tan cabezota como su abuelo."]]
+		else:
+			lines = [["Aldeana", "¿Eso es una sudadera? ¿Y esos zapatos? Parecen de nube."], ["Aris", "...Son deportivas."]]
+	elif id == "pastor":
+		lines = [["Pastor", "Mis cabras llevan desde anoche mirando hacia la cueva y sin comer. Y la tuya también mira, ¿te has fijado?"], ["Amaltea", "Yo miro lo que me da la gana."]]
+	elif id == "aldeano":
+		lines = [["Aldeano", "Anoche volví a oír el llanto. Mi mujer dice que es el viento."], ["Aldeano", "El viento no hipa."]]
+	elif id == "nino":
+		lines = [["Niño", "¡Qué cabra más bonita! Tiene cara de saber cosas."], ["Amaltea", "Este niño tiene muy buen ojo."]]
 	if lines.is_empty():
 		return
 	await _run_dialog(lines)
+	if id == "anciano" and not State.flags.has("sello"):
+		State.flags["elder_met"] = true
+		await _play_recruit()
 	if id == "curete":
 		_show_hint("Enciende los tres fuegos antiguos para abrir la cueva", 6.0)
 		_autosave()
@@ -651,6 +685,75 @@ func _play_curete() -> void:
 	State.flags["curete"] = true
 	_cine_end()
 	_show_hint("Sigue el camino. Los senderos laterales llevan a los claros del bosque", 6.0)
+	_autosave()
+
+
+func _play_village() -> void:
+	State.flags["village_seen"] = true
+	_cine_start()
+	_cset(Vector3(-16.0, 9.0, 46.0), Vector3(0, 1.5, 10.0))
+	await _ccam(Vector3(15.0, 6.0, 30.0), Vector3(0, 2.0, -6.0), 5.0)
+	await _cd([
+		["", "Melisia: casas blancas, puertas azules y olivos por todas partes. Huele a pan recién hecho."],
+		["Amaltea", "Pan. Hay pan. No me mires así: yo ya había decidido que este sitio me caía bien."],
+		["Aldeana", "¿Has visto qué ropa lleva el forastero? Parece un saco con capucha."],
+		["Aris", "...Es una sudadera."],
+		["Amaltea", "Con más pedigrí que cualquier otra de por aquí, por supuesto."],
+	])
+	_cine_end()
+	_show_hint("Habla con los aldeanos. El anciano del fondo parece saber cosas", 6.0)
+	_autosave()
+
+
+func _cwalk(node: Node3D, to: Vector3, dur: float) -> void:
+	var model: Node3D = node.get_child(0)
+	_face(node, to.x - node.position.x, to.z - node.position.z)
+	if cine_skip:
+		node.position = to
+		return
+	var tw := create_tween()
+	tw.tween_property(node, "position", to, dur)
+	var t: float = 0.0
+	while tw.is_running() and not cine_skip:
+		await get_tree().process_frame
+		t += get_process_delta_time() * 10.0
+		Character.animate(model, t, 1.0)
+	tw.kill()
+	node.position = to
+	Character.animate(model, 0.0, 0.0)
+
+
+func _play_recruit() -> void:
+	var el: Node3D = zone.get_node_or_null("Anciano")
+	if el == null:
+		return
+	_cine_start()
+	var nika: Node3D = Companion.person(Color(0.2, 0.6, 0.35), "Nika")
+	nika.name = "Nika"
+	nika.position = Vector3(-14.0, 0, -22.0)
+	zone.add_child(nika)
+	_cset(Vector3(7.0, 2.8, -13.0), Vector3(-1.0, 1.5, -20.0))
+	await _cwalk(nika, Vector3(-2.2, 0, -21.0), 3.2)
+	_face(nika, el.position.x - nika.position.x, el.position.z - nika.position.z)
+	_face(el, nika.position.x - el.position.x, nika.position.z - el.position.z)
+	await _cd([
+		["Nika", "¡Abuelo! He oído que un forastero quiere ir a la cueva. ¿Está loco?"],
+		["Aris", "Es lo que me han dicho."],
+		["Nika", "Ni siquiera tienes un arco."],
+		["Aris", "Tengo... ¿muchas ganas?"],
+		["Nika", "Con ganas no se espanta a una arpía."],
+		["Amaltea", "Me gusta esta chica."],
+		["Nika", "...Vale. Voy contigo, aunque sea para que no te maten delante de mí. Y por cierto, tu cabra me está comiendo el delantal."],
+		["Amaltea", "Es una muestra de cariño."],
+		["Anciano", "Llevad el sello. Y volved los dos de una pieza."],
+		["", "Nika se une al grupo. ¡Has recibido el Sello de Melisia!"],
+	])
+	nika.queue_free()
+	State.flags["nika"] = true
+	State.flags["sello"] = true
+	State.add_nika()
+	_cine_end()
+	_show_hint("Con el sello, la puerta de la cueva podrá abrirse", 6.0)
 	_autosave()
 
 
@@ -964,7 +1067,22 @@ func _light_brazier(node: Node3D) -> void:
 		_show_hint("Fuegos encendidos: %d/3" % n, 3.5)
 		_autosave()
 		return
-	await _run_dialog([["", "El tercer fuego prende. Se oye un crujido profundo, como si la montaña despertara."], ["Amaltea", "Eso ha sonado a puerta. A puerta grande."]])
+	State.flags["fires_done"] = true
+	if State.flags.has("sello"):
+		await _open_gate()
+		return
+	await _run_dialog([
+		["", "El tercer fuego prende. Se oye un crujido profundo, como si la montaña despertara... pero la puerta no cede."],
+		["Aris", "Hay un cuarto hueco en la puerta, con una marca grabada. Y los fuegos eran tres."],
+		["Amaltea", "Esa marca me suena. Y huelo humo de chimenea... hacia el oeste."],
+	])
+	_show_hint("Falta algo para abrir la puerta de la cueva", 6.0)
+	_autosave()
+
+
+func _open_gate() -> void:
+	gate_busy = true
+	await _run_dialog([["", "Aris acerca el sello de Melisia al cuarto hueco. Encaja con un chasquido y la montaña despierta."], ["Amaltea", "Eso ha sonado a puerta. A puerta grande."]])
 	State.flags["gate_open"] = true
 	Zones.refresh_cap1(zone)
 	_show_hint("La puerta de la cueva se ha abierto", 5.0)
@@ -1075,10 +1193,15 @@ func _travel(target: String, remember: bool = true) -> void:
 	elif target == "return":
 		dest = State.last_zone
 		use_pos = State.has_last
+	var from_zone: String = current_zone
 	var tw := create_tween()
 	tw.tween_property(fade, "color:a", 1.0, 0.35)
 	await tw.finished
 	_load_zone(dest)
+	if dest == "cap1" and from_zone == "village":
+		player.position = Vector3(-40.0, Zones.ground_y(-40.0, 39.0) + 1.1, 39.0)
+		spawn_point = player.position
+		_place_companion()
 	if use_pos:
 		player.position = State.last_pos + Vector3(0, 0.3, 0)
 		_place_companion()
@@ -1087,6 +1210,8 @@ func _travel(target: String, remember: bool = true) -> void:
 	await tw2.finished
 	traveling = false
 	_autosave()
+	if current_zone == "village" and not State.flags.has("village_seen"):
+		await _play_village()
 	if current_zone == "cap1" and not State.flags.has("cap1_enter"):
 		State.flags["cap1_enter"] = true
 		await _run_dialog([["", "El bosque de Creta huele a pino y a tierra húmeda. Todo está demasiado silencioso."], ["Amaltea", "Qué raro... normalmente aquí no se calla ni un grillo."]])
@@ -1263,6 +1388,8 @@ func _process(delta: float) -> void:
 		_update_enemies(delta)
 		if not State.flags.has("curete_cine") and player.global_position.z < 41.0 and not cine_active:
 			_play_curete()
+		if State.flags.has("fires_done") and State.flags.has("sello") and not gate_busy and player.global_position.z < -20.0 and not cine_active:
+			_open_gate()
 	if grace <= 0.0:
 		for n in get_tree().get_nodes_in_group("enemies"):
 			var en := n as Node3D

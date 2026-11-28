@@ -720,6 +720,9 @@ static func refresh_cap1(root: Node3D) -> void:
 		var s: Node = root.get_node_or_null("Gate/Sock" + str(i + 1))
 		if s != null:
 			(s as MeshInstance3D).material_override = mat(Color(1.0, 0.8, 0.25), 2.5) if State.flags.has(id) else mat(Color(0.2, 0.2, 0.22))
+	var s4: Node = root.get_node_or_null("Gate/Sock4")
+	if s4 != null:
+		(s4 as MeshInstance3D).material_override = mat(Color(0.3, 0.7, 1.0), 2.5) if State.flags.has("sello") else mat(Color(0.2, 0.2, 0.22))
 	var ch: Node = root.get_node_or_null("Chest_chest1/Lid")
 	if ch != null and State.flags.has("chest1"):
 		var lid := ch as Node3D
@@ -800,13 +803,13 @@ static func build_cap1(root: Node3D) -> Dictionary:
 	gbs.size = Vector3(12, 7, 3)
 	gcs.shape = gbs
 	gate.add_child(gcs)
-	for i in 3:
+	for i in 4:
 		var s := MeshInstance3D.new()
 		var sb := BoxMesh.new()
 		sb.size = Vector3(1.0, 1.0, 0.2)
 		s.mesh = sb
 		s.name = "Sock" + str(i + 1)
-		s.position = Vector3(-3.0 + 3.0 * i, 1.2, 1.6)
+		s.position = Vector3(-4.5 + 3.0 * i, 1.2, 1.6)
 		s.material_override = mat(Color(0.2, 0.2, 0.22))
 		gate.add_child(s)
 	root.add_child(gate)
@@ -820,6 +823,8 @@ static func build_cap1(root: Node3D) -> Dictionary:
 	brazier(root, Vector3(-31, 6.5, -19), "b3")
 	_step_rocks(root, Vector3(22, 0, -7), Vector3(28.5, 0, -12), 5.5)
 	chest(root, Vector3(31, 5.5, -14), "chest1")
+	# Sendero a la izquierda: lleva a la aldea
+	portal(root, Vector3(-43.5, Forest.gy(-43.5, 40), 40), "village", "Seguir el sendero", Color(0.9, 0.8, 0.4))
 	# Curete
 	var cur: Node3D = Companion.person(Color(0.72, 0.55, 0.2), "Curete")
 	cur.name = "Curete"

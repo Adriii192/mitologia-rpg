@@ -82,7 +82,10 @@ static func load_game() -> Dictionary:
 	if cf.load(SAVE_PATH) != OK:
 		return {}
 	party = []
+	flags = cf.get_value("s", "flags", {})
 	ensure_party()
+	if flags.has("nika"):
+		add_nika()
 	var arr: Array = cf.get_value("s", "party", [])
 	for i in mini(arr.size(), party.size()):
 		var d: Dictionary = arr[i]
@@ -102,6 +105,21 @@ static func load_game() -> Dictionary:
 	last_pos = cf.get_value("s", "last_pos", Vector3.ZERO)
 	has_last = bool(cf.get_value("s", "has_last", false))
 	return {"zone": str(cf.get_value("s", "zone", "beach")), "pos": cf.get_value("s", "pos", Vector3.ZERO)}
+
+
+static func add_nika() -> void:
+	for p in party:
+		if p.fname == "Nika":
+			return
+	var n = _mk("Nika", Color(0.2, 0.7, 0.4), 36, 14, 9, 3, 6, "Lluvia de flechas", 6, "all", 0.8)
+	n.hp_gain = 6
+	n.mp_gain = 2
+	n.atk_gain = 2
+	n.def_gain = 1
+	n.mag_gain = 1
+	for i in range(1, party[0].level):
+		n.level_up()
+	party.append(n)
 
 
 static func make_enemy(kind: String):

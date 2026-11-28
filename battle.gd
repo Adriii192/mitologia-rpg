@@ -174,6 +174,11 @@ func _make_model(f) -> Node3D:
 		hm.scale = Vector3(1.25, 1.25, 1.25)
 		body.add_child(hm)
 		_collect_mats(hm, f)
+	elif str(f.fname) == "Nika":
+		var nm: Node3D = Character.build(Color(0.2, 0.6, 0.35), Color(0.45, 0.3, 0.2), Color(0.9, 0.7, 0.55), Color(0.25, 0.14, 0.08), "bun", false, Color(0.3, 0.2, 0.12))
+		nm.scale = Vector3(1.2, 1.2, 1.2)
+		body.add_child(nm)
+		_collect_mats(nm, f)
 	else:
 		_mesh_node(body, _capsule(0.38, 1.6), Vector3(0, 0.8, 0), col, f, true)
 		_mesh_node(body, _sphere(0.3), Vector3(0, 1.95, 0), Color(0.86, 0.66, 0.48), f, true)
